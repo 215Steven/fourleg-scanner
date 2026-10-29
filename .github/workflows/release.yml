@@ -1,0 +1,30 @@
+# 發布新版本：推送 v 開頭的標籤（例如 v1.0.0），自動打包 fourleg-scanner.zip 並附在 Release 上
+# 附件的下載次數會由 GitHub 記錄，README 的下載次數徽章就是讀這個數字
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 打包
+        run: |
+          mkdir -p dist/fourleg-scanner
+          cp app.py fourleg_scanner.py index.html routes.json config.json README.md LICENSE \
+             啟動掃描器.command 啟動掃描器.bat dist/fourleg-scanner/
+          chmod 755 dist/fourleg-scanner/啟動掃描器.command
+          cd dist && zip -r -X ../fourleg-scanner.zip fourleg-scanner
+
+      - name: 建立 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: fourleg-scanner.zip
+          generate_release_notes: true

@@ -6,6 +6,13 @@
 
 由 [OO SAY HI](https://oosayhi.com) 製作，免費開源。
 
+[![下載次數](https://img.shields.io/github/downloads/215Steven/fourleg-scanner/total?label=%E4%B8%8B%E8%BC%89%E6%AC%A1%E6%95%B8&color=0f6b55)](https://github.com/215Steven/fourleg-scanner/releases/latest)
+[![GitHub Stars](https://img.shields.io/github/stars/215Steven/fourleg-scanner?style=social)](https://github.com/215Steven/fourleg-scanner/stargazers)
+
+**[按這裡下載最新版（fourleg-scanner.zip）](https://github.com/215Steven/fourleg-scanner/releases/latest/download/fourleg-scanner.zip)**
+
+覺得好用的話，請幫忙按右上角的 **Star**，讓更多人找得到這個工具。
+
 ![四腿外站票掃描器畫面（示範資料）](docs/screenshot.png)
 
 ## 功能
@@ -30,7 +37,7 @@
 
 ### Mac
 
-1. 下載這個專案（綠色 **Code** 按鈕 → **Download ZIP**），解壓縮
+1. [下載 fourleg-scanner.zip](https://github.com/215Steven/fourleg-scanner/releases/latest/download/fourleg-scanner.zip)，解壓縮
 2. 雙擊 **`啟動掃描器.command`**
    - 如果跳出「無法打開」：按右鍵 → 打開 → 再按一次打開
 3. 第一次會自動安裝需要的東西（約 1–2 分鐘），完成後瀏覽器會自動打開掃描器
@@ -40,7 +47,7 @@
 
 ### Windows
 
-1. 下載這個專案（綠色 **Code** 按鈕 → **Download ZIP**），**先解壓縮**再開啟（不要直接在壓縮檔裡執行）
+1. [下載 fourleg-scanner.zip](https://github.com/215Steven/fourleg-scanner/releases/latest/download/fourleg-scanner.zip)，**先解壓縮**再開啟（不要直接在壓縮檔裡執行）
 2. 雙擊 **`啟動掃描器.bat`**
    - 如果跳出「Windows 已保護您的電腦」：按 **其他資訊** → **仍要執行**
 3. 第一次會自動安裝需要的東西（約 1–2 分鐘），完成後瀏覽器會自動打開掃描器
