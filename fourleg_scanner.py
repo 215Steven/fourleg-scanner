@@ -60,6 +60,21 @@ try:  # faster-flights（GitHub: jamexhuang/flights）提供的多城市 RPC 查
         return f"f.req={_up.quote(json.dumps(req, separators=(',', ':')))}&"
 
     _shop._encode_shopping_request = _encode_with_filters
+
+    # 原版每次查價都先 GET 一次 Google Flights 首頁「暖機」，這裡改成每條連線只暖機一次
+    _orig_warmup = _shop._warmup_shopping_session
+    _WARMED: set[int] = set()
+
+    def _warmup_once(client, **kw):
+        if id(client) in _WARMED:
+            return
+        _WARMED.add(id(client))
+        _orig_warmup(client, **kw)
+
+    _shop._warmup_shopping_session = _warmup_once
+    import inspect as _inspect
+    _NO_RETRY = ({"max_retries": 0}
+                 if "max_retries" in _inspect.signature(_shop.fetch_shopping_results).parameters else {})
     HAS_RPC = True
 except Exception:
     HAS_RPC = False
@@ -89,7 +104,13 @@ def log_activity(kind: str, text: str, result: str = "", secs: float | None = No
                      "text": text, "r": result, "s": round(secs, 1) if secs is not None else None})
     del ACTIVITY[:-400]
     print(f"{ACTIVITY[-1]['t']} {text} {result}" + (f"（{secs:.1f} 秒）" if secs is not None else ""))
+BLOCKED_MSG = ("Google 目前不回應你的網路（掃描一開始就連續被擋或逾時），看起來是被暫時封鎖。"
+               "已自動停止，請 24 小時後再試，期間不要重複掃描，否則封鎖時間會被拉長。")
 FIXED_PICKS: list[str] = []  # 固定段日期的彈性挑選結果
+
+
+class NetworkBlocked(Exception):
+    """掃描一開始就連續被擋或逾時。"""
 
 
 class ComboLimit(Exception):
@@ -194,6 +215,8 @@ class Fetcher:
                 self.cache = {}
         self._last = 0.0
         self.blocked_streak = 0
+        self.ok_responses = 0  # 本次掃描 Google 有正常回應的次數（含查無航班）
+        self.early_stop = int(cfg.get("early_stop_after", 2))
         self.net_calls = 0  # 實際連網查詢次數（快取不算）
         self.block_limit = int(cfg.get("block_stop_after", 5))
         self.backoff = int(cfg.get("block_backoff_sec") or 15)
@@ -209,6 +232,11 @@ class Fetcher:
 
     def _mark(self, blocked: bool):
         self.blocked_streak = self.blocked_streak + 1 if blocked else 0
+        if not blocked:
+            self.ok_responses += 1
+        if blocked and self.ok_responses == 0 and self.early_stop and self.blocked_streak >= self.early_stop:
+            # 一開始就連續被擋：網路多半已被 Google 暫時封鎖，繼續試只會延長封鎖
+            raise NetworkBlocked()
         if self.blocked_streak >= self.block_limit:
             raise RateLimited()
         if blocked:
@@ -311,6 +339,7 @@ class Fetcher:
                 client=self._client, legs=fq, tokens=[],
                 language="zh-TW", currency=currency, seat="economy",
                 passenger_counts=(adults, 0, 0, 0),
+                **_NO_RETRY,  # 原版預設失敗或查無時自動重試 3 次（一次查詢變 4 次請求），重試統一由這裡控管
             )
             prices = [f.price for f in (found or []) if getattr(f, "price", 0) and f.price > 0]
             if price and price > 0:
@@ -838,13 +867,19 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
     except RateLimited:
         LAST_STOP_REASON = "Google 暫時限流，已自動停止。建議 30–60 分鐘後再掃，並縮小範圍。"
         log_activity("block", LAST_STOP_REASON)
-    if top_mode and not (LAST_STOP_REASON.startswith("Google") or (stop_event is not None and stop_event.is_set())):
+    except NetworkBlocked:
+        LAST_STOP_REASON = BLOCKED_MSG
+        log_activity("block", LAST_STOP_REASON)
+    if top_mode and not (LAST_STOP_REASON.startswith("Google") or LAST_STOP_REASON == BLOCKED_MSG or (stop_event is not None and stop_event.is_set())):
         try:
             baseline_stage()
         except KeyboardInterrupt:
             log_activity("info", "已停止，保留目前結果")
         except RateLimited:
             LAST_STOP_REASON = "Google 暫時限流，已自動停止。建議 30–60 分鐘後再掃，並縮小範圍。"
+            log_activity("block", LAST_STOP_REASON)
+        except NetworkBlocked:
+            LAST_STOP_REASON = BLOCKED_MSG
             log_activity("block", LAST_STOP_REASON)
     fetcher.save()
 

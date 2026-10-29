@@ -88,7 +88,8 @@ python app.py      # 開啟 http://127.0.0.1:8765
 ## 自訂
 
 - `config.json`：預設設定（也可以直接在網頁上改），常用進階選項：
-  - `request_delay_sec`：每次查詢間隔秒數（預設 4）
+  - `request_delay_sec`：每次查詢間隔秒數（預設 6）
+  - `early_stop_after`：掃描一開始就連續幾次被擋或逾時，就判定網路被暫時封鎖並停止（預設 2）
   - `baseline_mode`：`"top"` 只比最便宜的幾個日期（預設）、`"all"` 每個日期都比
   - `baseline_top_n`：要比幾個日期（預設 5）
   - `max_combos_per_scan`：每次最多查幾組（預設 20，0 為不限）

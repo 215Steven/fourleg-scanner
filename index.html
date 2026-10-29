@@ -769,8 +769,8 @@ async function poll(){
   if (r.fixed_picks) $("fixedPick").textContent = r.fixed_picks.length ? `本次採用：${r.fixed_picks.join("、")}` : "";
   const pct = r.total ? Math.round(r.done / r.total * 100) : 0;
   if (r.state === "running") setStatus("running", `掃描中 ${r.done} / ${r.total}${r.calls != null ? ` · 已查詢 ${r.calls} 次` : ""}`, pct);
-  else if (r.state === "finished") setStatus(/限流/.test(r.message) ? "error" : "finished",
-    /限流/.test(r.message) ? `<span class="err">${esc(r.message)}</span>` : `${r.message} · ${rows.length} 組 · 報表存在 output 資料夾`, 100);
+  else if (r.state === "finished") setStatus(/限流|封鎖/.test(r.message) ? "error" : "finished",
+    /限流|封鎖/.test(r.message) ? `<span class="err">${esc(r.message)}</span>` : `${r.message} · ${rows.length} 組 · 報表存在 output 資料夾`, 100);
   else if (r.state === "error") setStatus("error", `<span class="err">掃描中斷：${esc(r.message)}</span>`);
   render();
   if (r.state !== "running") stopPolling();

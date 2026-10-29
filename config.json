@@ -26,7 +26,7 @@
   "deal_rules": {
     "min_saving_pct": 15
   },
-  "request_delay_sec": 4,
+  "request_delay_sec": 6,
   "cache_hours": 24,
   "allow_stops_fallback": true,
   "longhaul_arrival_days": {
@@ -43,5 +43,6 @@
   "coarse_fine": true,
   "baseline_mode": "top",
   "baseline_top_n": 5,
-  "max_days_ahead": 330
+  "max_days_ahead": 330,
+  "early_stop_after": 2
 }
