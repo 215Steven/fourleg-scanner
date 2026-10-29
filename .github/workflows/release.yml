@@ -1,10 +1,12 @@
-# 發布新版本：推送 v 開頭的標籤（例如 v1.0.0），自動打包 fourleg-scanner.zip 並附在 Release 上
+# 發布新版本：修改 VERSION 檔的版本號並推送到 main，自動打包 fourleg-scanner.zip 並建立 Release
 # 附件的下載次數會由 GitHub 記錄，README 的下載次數徽章就是讀這個數字
 name: Release
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+    paths: [VERSION]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,6 +16,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: 讀取版本號
+        id: ver
+        run: echo "tag=v$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
 
       - name: 打包
         run: |
@@ -26,5 +32,7 @@ jobs:
       - name: 建立 Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: 四腿外站票掃描器 ${{ steps.ver.outputs.tag }}
           files: fourleg-scanner.zip
           generate_release_notes: true
