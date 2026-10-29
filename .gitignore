@@ -1,0 +1,12 @@
+# 掃描結果、快取與紀錄（個人資料，不上傳）
+output/
+launcher.log
+
+# Python 執行環境
+.venv/
+__pycache__/
+*.pyc
+
+# 系統檔
+.DS_Store
+Thumbs.db

@@ -1,0 +1,47 @@
+{
+  "_說明": "四腿外站票掃描設定。也可以直接在網頁上調整，按「開始掃描」時會自動存回這個檔案。日期格式 YYYY-MM-DD。",
+  "destinations": [
+    "CTS"
+  ],
+  "airlines": [
+    "BR",
+    "CI",
+    "JX"
+  ],
+  "outstations": [
+    "HKG"
+  ],
+  "hub": "TPE",
+  "date_window": {
+    "start": "2027-01-10",
+    "end": "2027-03-31",
+    "step_days": 7
+  },
+  "trip_days": 5,
+  "connect_pair": "12",
+  "connect_gap_days": 1,
+  "fixed_leg_date": "2027-06-30",
+  "adults": 1,
+  "currency": "TWD",
+  "deal_rules": {
+    "min_saving_pct": 15
+  },
+  "request_delay_sec": 4,
+  "cache_hours": 24,
+  "allow_stops_fallback": true,
+  "longhaul_arrival_days": {
+    "eu": 1,
+    "na": 1,
+    "oc": 0
+  },
+  "oneway_ref": true,
+  "block_stop_after": 5,
+  "block_backoff_sec": 15,
+  "max_combos_per_scan": 20,
+  "fixed_flex_days": 1,
+  "baseline_calendar": false,
+  "coarse_fine": true,
+  "baseline_mode": "top",
+  "baseline_top_n": 5,
+  "max_days_ahead": 330
+}

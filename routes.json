@@ -1,0 +1,63 @@
+{
+  "_說明": "三家航空的客運航點（不含台灣本地機場）。asia＝可當外站的亞洲航點，all＝可當目的地的全部航點。資料來源：維基百科航點列表（2026/10 查詢），航點會變動，可自行增刪。",
+  "_updated": "2026-10-27",
+  "airlines": {
+    "BR": {
+      "name": "長榮",
+      "asia": ["AOJ","AKJ","FUK","UKB","KMQ","MYJ","OKA","KIX","CTS","SDJ","HND","NRT",
+               "PUS","GMP","ICN",
+               "PEK","CTU","CKG","DLC","CAN","KWL","HGH","TNA","NGB","SHA","PVG","SZX","TSN","CGO",
+               "HKG","MFM",
+               "DPS","CGK","KUL","CEB","CRK","MNL","SIN","BKK","CNX","HKT","DAD","HAN","SGN",
+               "DEL"],
+      "longhaul": ["VIE","CDG","MUC","MXP","AMS","LHR",
+                   "YYZ","YVR","ORD","DFW","IAH","LAX","JFK","SFO","SEA","IAD",
+                   "BNE"]
+    },
+    "CI": {
+      "name": "華航",
+      "asia": ["FUK","HIJ","ISG","KOJ","KMJ","KMI","NGO","OKA","KIX","CTS","FSZ","TAK","HND","NRT","TOY",
+               "PUS","GMP","ICN",
+               "PEK","CSX","CTU","CKG","CAN","HAK","KHN","NKG","TAO","SYX","PVG","SHA","SZX","XMN","XIY","XUZ","YTY","WUH","WUX","WEH","CGO",
+               "HKG",
+               "DPS","CGK","KUL","PEN","RGN","CEB","MNL","SIN","BKK","CNX","DAD","HAN","SGN"],
+      "longhaul": ["VIE","PRG","FRA","AMS","FCO","LHR",
+                   "LAX","JFK","ONT","PHX","SFO","SEA","YVR",
+                   "BNE","MEL","SYD","AKL","ROR","GUM"]
+    },
+    "JX": {
+      "name": "星宇",
+      "asia": ["FUK","HKD","UKB","KMJ","NGO","OKA","KIX","CTS","SDJ","SHI","TAK","NRT",
+               "PUS",
+               "HKG","MFM",
+               "KUL","CEB","CRK","MNL","SIN","BKK","CNX","DAD","HAN","SGN","PQC","DPS"],
+      "longhaul": ["PRG",
+                   "LAX","ONT","PHX","SFO","SEA",
+                   "SYD","AKL"]
+    }
+  },
+  "future": {"DEL": "長榮 2026/12/1 開航", "SYD@JX": "星宇 2027 開航", "AKL@JX": "星宇 2027 開航"},
+  "regions": [
+    {"id": "jp", "name": "日本", "codes": ["NRT","HND","KIX","UKB","NGO","FUK","CTS","OKA","SDJ","AOJ","AKJ","HKD","KMQ","MYJ","HIJ","ISG","KOJ","KMJ","KMI","FSZ","TAK","TOY","SHI"]},
+    {"id": "kr", "name": "韓國", "codes": ["ICN","GMP","PUS"]},
+    {"id": "hm", "name": "港澳", "codes": ["HKG","MFM"]},
+    {"id": "sea", "name": "東南亞", "codes": ["BKK","CNX","HKT","SGN","HAN","DAD","PQC","MNL","CEB","CRK","SIN","KUL","PEN","CGK","DPS","RGN"]},
+    {"id": "sa", "name": "南亞", "codes": ["DEL"]},
+    {"id": "cn", "name": "中國大陸", "codes": ["PEK","PVG","SHA","CAN","SZX","CTU","CKG","HGH","NGB","XMN","TAO","DLC","TSN","TNA","KWL","CGO","CSX","HAK","KHN","NKG","SYX","XIY","XUZ","YTY","WUH","WUX","WEH"]},
+    {"id": "eu", "name": "歐洲", "codes": ["VIE","PRG","MUC","FRA","AMS","CDG","LHR","FCO","MXP"]},
+    {"id": "na", "name": "北美", "codes": ["LAX","SFO","SEA","ONT","PHX","JFK","ORD","DFW","IAH","IAD","YVR","YYZ"]},
+    {"id": "oc", "name": "大洋洲", "codes": ["BNE","SYD","MEL","AKL","GUM","ROR"]}
+  ],
+  "names": {
+    "NRT":"東京成田","HND":"東京羽田","KIX":"大阪關西","UKB":"神戶","NGO":"名古屋","FUK":"福岡","CTS":"札幌","OKA":"沖繩","SDJ":"仙台","AOJ":"青森","AKJ":"旭川","HKD":"函館","KMQ":"小松","MYJ":"松山","HIJ":"廣島","ISG":"石垣","KOJ":"鹿兒島","KMJ":"熊本","KMI":"宮崎","FSZ":"靜岡","TAK":"高松","TOY":"富山","SHI":"下地島",
+    "ICN":"首爾仁川","GMP":"首爾金浦","PUS":"釜山",
+    "HKG":"香港","MFM":"澳門",
+    "BKK":"曼谷","CNX":"清邁","HKT":"普吉","SGN":"胡志明","HAN":"河內","DAD":"峴港","PQC":"富國島","MNL":"馬尼拉","CEB":"宿霧","CRK":"克拉克","SIN":"新加坡","KUL":"吉隆坡","PEN":"檳城","CGK":"雅加達","DPS":"峇里島","RGN":"仰光",
+    "DEL":"新德里",
+    "PEK":"北京","PVG":"上海浦東","SHA":"上海虹橋","CAN":"廣州","SZX":"深圳","CTU":"成都","CKG":"重慶","HGH":"杭州","NGB":"寧波","XMN":"廈門","TAO":"青島","DLC":"大連","TSN":"天津","TNA":"濟南","KWL":"桂林","CGO":"鄭州","CSX":"長沙","HAK":"海口","KHN":"南昌","NKG":"南京","SYX":"三亞","XIY":"西安","XUZ":"徐州","YTY":"揚州","WUH":"武漢","WUX":"無錫","WEH":"威海",
+    "VIE":"維也納","PRG":"布拉格","MUC":"慕尼黑","FRA":"法蘭克福","AMS":"阿姆斯特丹","CDG":"巴黎","LHR":"倫敦","FCO":"羅馬","MXP":"米蘭",
+    "LAX":"洛杉磯","SFO":"舊金山","SEA":"西雅圖","ONT":"安大略","PHX":"鳳凰城","JFK":"紐約","ORD":"芝加哥","DFW":"達拉斯","IAH":"休士頓","IAD":"華盛頓","YVR":"溫哥華","YYZ":"多倫多",
+    "BNE":"布里斯本","SYD":"雪梨","MEL":"墨爾本","AKL":"奧克蘭","GUM":"關島","ROR":"帛琉",
+    "TPE":"台北"
+  }
+}
