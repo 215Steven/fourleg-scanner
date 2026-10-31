@@ -220,7 +220,7 @@ class BrowserSession:
     RPC_PATH = "/_/FlightsFrontendUi/data/travel.frontend.flights.FlightsFrontendService/GetShoppingResults"
 
     def __init__(self, base: str = "https://www.google.com", lang: str = "zh-TW", currency: str = "TWD",
-                 headless: bool = True, timeout_sec: float = 30):
+                 headless: bool = True, timeout_sec: float = 25):
         from playwright.sync_api import sync_playwright
         self.base, self.lang, self.cur = base.rstrip("/"), lang, currency
         self.timeout_ms = int(timeout_sec * 1000)
@@ -277,6 +277,19 @@ class BrowserSession:
                 body: body + "&at=" + encodeURIComponent(w.SNlM0e || "") + "&",
                 headers: {"content-type": "application/x-www-form-urlencoded;charset=UTF-8", "x-same-domain": "1",
                           "x-goog-ext-259736195-jspb": JSON.stringify([lang, "TW", cur, 1, null, [0], null, null, 1, []])}});
+              // 查價回應是分段傳送，Google 有時傳完結果還不關連線：收到結果後 1.5 秒沒有新資料就先收工
+              const reader = r.body.getReader(), dec = new TextDecoder();
+              let buf = "", got = false;
+              while (true) {
+                const step = got
+                  ? await Promise.race([reader.read(), new Promise(ok => setTimeout(() => ok({idle: true}), 1500))])
+                  : await reader.read();
+                if (step.idle) { try { reader.cancel(); } catch (e) {} break; }
+                if (step.done) break;
+                buf += dec.decode(step.value, {stream: true});
+                if (!got && buf.includes('"wrb.fr"')) got = true;
+              }
+              return [r.status, buf];
             }
             return [r.status, await r.text()];
           } catch (e) { return [0, "ERROR " + String(e)]; }
@@ -328,7 +341,7 @@ class Fetcher:
         self._last = 0.0
         self.engine = cfg.get("engine", "browser")
         self.browser_base = cfg.get("browser_base", "https://www.google.com")
-        self.browser_timeout = float(cfg.get("browser_timeout_sec", 30))
+        self.browser_timeout = float(cfg.get("browser_timeout_sec", 25))
         self.mode = self.engine  # 目前使用的查價方式，被擋時會在 browser／direct 之間切換
         self.browser: BrowserSession | None = None
         self._browser_failed = False
@@ -520,7 +533,7 @@ class Fetcher:
                 note = "逾時（可能限流）"
                 if self.browser is not None and self.ok_responses > 0:
                     # 同一個 Chrome 剛剛還查得到：多半是這組沒有航班、Google 一直沒回，不是被擋
-                    blocked, note = False, "逾時（這組可能沒有航班）"
+                    blocked, note = False, "逾時（Google 沒回應，略過這筆）"
         if p:
             self.cache[key] = {"t": time.time(), "p": p}
         log_activity("ok" if p else ("block" if blocked else "none"), label,
@@ -557,7 +570,7 @@ class Fetcher:
                 note = "逾時（可能限流）"
                 if self.browser is not None and self.ok_responses > 0:
                     # 同一個 Chrome 剛剛還查得到：多半是這組沒有航班、Google 一直沒回，不是被擋
-                    blocked, note = False, "逾時（這組可能沒有航班）"
+                    blocked, note = False, "逾時（Google 沒回應，略過這筆）"
         if p:
             self.cache[key] = {"t": time.time(), "p": p}
         log_activity("ok" if p else ("block" if blocked else "none"), label,
