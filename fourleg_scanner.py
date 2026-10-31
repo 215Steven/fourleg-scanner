@@ -377,12 +377,9 @@ class Fetcher:
             wait = min(180, self.backoff * self.blocked_streak)
             how = "換新連線"
             if self.engine == "browser" and not self._browser_failed:
-                # 兩種查價方式輪流換：背景 Chrome 被擋 → 改直接連線；直接連線被擋 → 重開一個全新的背景 Chrome
-                if self.mode == "browser":
-                    self.close()
-                    self.mode, how = "direct", "改用直接連線"
-                else:
-                    self.mode, how = "browser", "重新開一個全新的背景 Chrome"
+                # 被擋就關掉這個背景 Chrome，下一筆重新開一個全新的（直接連線已確定會被擋，不再切過去）
+                self.close()
+                how = "重新開一個全新的背景 Chrome"
             log_activity("block", f"Google 限流，{wait} 秒後{how}重試（連續第 {self.blocked_streak} 次，"
                                   f"{self.block_limit} 次就自動停止）")
             time.sleep(wait)

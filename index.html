@@ -161,7 +161,7 @@ input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible,.c
 .big + .p{margin:6px 0 0;font:600 13px var(--mono);color:var(--ink-2)}
 .sub{margin:10px 0 0;color:var(--ink-2);font-size:13.5px;text-wrap:pretty}
 .sub b{color:var(--ink);font-weight:600}
-.compare{display:grid;grid-template-columns:repeat(3,auto);justify-content:start;gap:4px 22px;margin-top:16px}
+.compare{display:grid;grid-template-columns:repeat(2,auto);justify-content:start;gap:4px 22px;margin-top:16px}
 .compare dt{font-size:11.5px;color:var(--mut)} .compare dd{margin:0;font:500 15px/1.3 var(--mono);font-variant-numeric:tabular-nums}
 .hero .route{padding:20px 22px;display:flex;flex-direction:column;gap:14px}
 .legs{list-style:none;margin:0;padding:0;display:grid;gap:0}
@@ -310,7 +310,7 @@ td a{color:var(--ink-2);text-decoration:underline;text-decoration-color:var(--li
           <label class="f" for="fixed" id="fixedLabel">第 4 段日期</label><input type="date" id="fixed">
           <p class="pick num" id="fixedPick" aria-live="polite"></p>
         </div>
-        <div class="g2">
+        <div class="g2" hidden>
           <div><label class="f" for="flex">前後彈性（天）</label><input type="number" id="flex" min="0" max="3"></div>
           <div><label class="f" for="gap">轉機隔幾天</label><input type="number" id="gap" min="0" max="1"></div>
         </div>
@@ -318,18 +318,18 @@ td a{color:var(--ink-2);text-decoration:underline;text-decoration-color:var(--li
       </section>
 
       <section class="step">
-        <h2><b>4</b>比價方式</h2>
-        <div class="seg field" role="group" aria-label="比較基準">
+        <h2><b>4</b>DEAL 門檻</h2>
+        <div class="seg field" role="group" aria-label="比較基準" hidden>
           <button type="button" data-basis="both">兩趟都要玩</button>
           <button type="button" data-basis="dest">只去目的地</button>
         </div>
-        <p class="hint" id="basisHint"></p>
-        <div><label class="f" for="minSave">便宜超過幾 % 標 DEAL</label><input type="number" id="minSave" min="0"></div>
-        <label class="switch"><input type="checkbox" id="topOnly" checked> <span>省查詢：四腿掃完，只拿最便宜的 <input type="number" id="topN" min="1" max="20" class="inl" aria-label="幾個出國日"> 個出國日跟台北來回比</span></label>
-        <label class="switch"><input type="checkbox" id="coarse" checked> 快速模式：先隔一個日期掃，再補查最便宜價位附近的日期</label>
-        <label class="switch"><input type="checkbox" id="oneway" checked> 參考：查台灣→外站單程（不限航司）</label>
+        <p class="hint" id="basisHint" hidden></p>
+        <div><label class="f" for="minSave">四腿票比同航司台北來回便宜超過幾 %，標成 DEAL</label><input type="number" id="minSave" min="0"></div>
+        <label class="switch" hidden><input type="checkbox" id="topOnly" checked> <span>省查詢：四腿掃完，只拿最便宜的 <input type="number" id="topN" min="1" max="20" class="inl" aria-label="幾個出國日"> 個出國日跟台北來回比</span></label>
+        <label class="switch" hidden><input type="checkbox" id="coarse" checked> 快速模式：先隔一個日期掃，再補查最便宜價位附近的日期</label>
+        <label class="switch" hidden><input type="checkbox" id="oneway" checked> 參考：查台灣→外站單程（不限航司）</label>
         <label class="switch"><input type="checkbox" id="save" checked> 把設定存回 config.json</label>
-        <label class="switch"><input type="checkbox" id="dry"> 只產生連結，不抓價</label>
+        <label class="switch" hidden><input type="checkbox" id="dry"> 只產生連結，不抓價</label>
       </section>
     </div>
     <div class="actions">
@@ -389,9 +389,7 @@ td a{color:var(--ink-2);text-decoration:underline;text-decoration-color:var(--li
             <th>四段日期 <span class="note">（轉＝轉機段）</span></th>
             <th data-k="fourleg_price" class="n">四腿票</th>
             <th data-k="baseline_price" class="n">台北來回（同航司）</th>
-            <th data-k="out_rt_price" class="n">外站來回（同航司）</th>
-            <th data-k="_save" class="n sorted">票價差（比兩趟）</th>
-            <th data-k="oneway_price" class="n">台灣→外站單程</th>
+            <th data-k="_save" class="n sorted">比台北來回省</th>
             <th>查證</th>
           </tr></thead>
           <tbody id="tbody"></tbody>
@@ -422,7 +420,7 @@ const pf = v => v == null ? "" : Math.abs(v).toFixed(1) + "%";
 const adultsLabel = () => `${Number($("adults").value) || 1} 位成人 · 新台幣`;
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
-let cfg = {}, rows = [], sortKey = "_save", sortAsc = false, polling = null, pair = "12", basis = "both", cellFilter = null, state = "idle";
+let cfg = {}, rows = [], sortKey = "_save", sortAsc = false, polling = null, pair = "12", basis = "dest", cellFilter = null, state = "idle";
 
 /* ---------- chips ---------- */
 function chip(code, on, labels){
@@ -521,7 +519,6 @@ function setPair(p){
   $("pairHint").textContent = p === "12"
     ? "外站→台北、台北→目的地 轉機；第 4 段（台北→外站）日期由你決定。"
     : "目的地→台北、台北→外站 轉機；第 1 段（外站→台北）日期由你決定。歐美回程隔天才抵達台北，轉機日會自動往後算。";
-  $("pairHint").textContent += " 前後彈性：先比這段日期前後幾天的四腿票價，挑最便宜的一天再往下查。";
   estimate();
 }
 function setBasis(b){
@@ -531,7 +528,7 @@ function setBasis(b){
     ? "四腿票的頭尾兩段等於一趟外站旅行，所以跟「台北⇄目的地來回＋台北⇄外站來回」兩張票的合計比。外站本來就想去玩時選這個。"
     : "只跟同航司台北⇄目的地來回比。外站只是拿來轉機、不打算玩時選這個。";
   const h = document.querySelector('th[data-k="_save"]');
-  if (h) h.textContent = basis === "both" ? "票價差（比兩趟）" : "票價差";
+  if (h) h.textContent = basis === "both" ? "票價差（比兩趟）" : "比台北來回省";
   markSorted(); render(); estimate();
 }
 
@@ -551,7 +548,7 @@ function fill(c){
   $("topOnly").checked = (c.baseline_mode || "top") === "top"; $("topN").value = c.baseline_top_n || 5;
   $("minSave").value = (c.deal_rules || {}).min_saving_pct ?? 15;
   setPair(c.connect_pair || "12");
-  setBasis(c.deal_basis || "both");
+  setBasis(c.deal_basis || "dest");
 }
 function collect(){
   const outs = picked($("outstations"));
@@ -624,14 +621,14 @@ function render(){
   const tb = $("tbody");
   if (!rows.length){
     tb.innerHTML = state === "running"
-      ? Array.from({length: 6}, () => `<tr class="skel">${"<td><i></i></td>".repeat(11)}</tr>`).join("")
-      : `<tr><td colspan="10" style="padding:0;border:0"><div class="empty-state">
+      ? Array.from({length: 6}, () => `<tr class="skel">${"<td><i></i></td>".repeat(9)}</tr>`).join("")
+      : `<tr><td colspan="8" style="padding:0;border:0"><div class="empty-state">
           <h3>還沒有掃描結果</h3>
           <ol><li>左側選航司、外站與目的地，第一次建議只勾 1 家航司、1 個外站。</li>
           <li>設定出國日期區間與四腿票型，前面轉就指定最後一段日期，後面轉就指定第一段日期。</li>
           <li>按「開始掃描」，結果會逐筆出現，最划算的組合會顯示在最上方。</li></ol></div></td></tr>`;
   } else if (!list.length){
-    tb.innerHTML = `<tr><td colspan="10" class="note" style="padding:28px 16px">沒有符合篩選的組合。${cellFilter ? "再點一次格子可取消日期篩選。" : ""}</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="8" class="note" style="padding:28px 16px">沒有符合篩選的組合。${cellFilter ? "再點一次格子可取消日期篩選。" : ""}</td></tr>`;
   } else {
     tb.innerHTML = list.map(r => {
       const ci = connIdx(r._legs);
@@ -649,9 +646,7 @@ function render(){
         <td><span class="mini">${mini}</span></td>
         <td class="n">${noPrice ? `<span class="note" title="${esc(r.note || "")}">${esc((r.note || "查無價格").length > 14 ? (r.note || "").slice(0, 14) + "…" : (r.note || "查無價格"))}</span>` : `${(r.via || "").includes("四腿") ? `<span class="via" title="這天查不到全程直飛，台北↔目的地改用同航司經停航班">經停</span>` : ""}${nf(r.fourleg_price)}`}</td>
         <td class="n">${/台北來回|直飛基準/.test(r.via || "") ? `<span class="via" title="同航司經停來回（與經停四腿票比較基準一致）">經停</span>` : ""}${nf(r.baseline_price)}</td>
-        <td class="n">${nf(r.out_rt_price)}</td>
         <td class="n ${fs > 0 ? "pos" : fs < 0 ? "neg" : ""}" title="${useCombo(r) ? `兩趟合計 ${nf(r.combo_price)} − 四腿 ${nf(r.fourleg_price)}` : "台北來回 − 四腿"}">${sf(fs)}<span class="pct">${pf(pctOf(r))}</span></td>
-        <td class="n note">${nf(r.oneway_price)}</td>
         <td>${links}</td></tr>`;
     }).join("");
   }
@@ -675,8 +670,8 @@ function renderHero(){
   $("heroDuo").innerHTML = fig(useCombo(b) ? "比分開買兩趟（台北來回＋外站來回）" : "比同航司台北來回", val(b), pctOf(b), true);
   $("heroSub").innerHTML = `<b>${AL[b.airline] || b.airline}</b> · <b>${esc(AP[b.outstation] || b.outstation)}</b>起訖 · ${esc(b.depart.slice(5).replace("-", "/"))} 台北→${esc(AP[b.dest] || b.dest)}`
     + (b.via ? ` · <span class="via">經停：${esc(b.via.replace("直飛基準", "台北來回"))}</span>` : "");
-  $("heroCompare").innerHTML = `<dt>四腿票</dt><dt>台北來回</dt><dt>外站來回</dt>
-    <dd>${nf(b.fourleg_price)}</dd><dd>${nf(b.baseline_price)}</dd><dd>${nf(b.out_rt_price)}</dd>`;
+  $("heroCompare").innerHTML = `<dt>四腿票</dt><dt>台北來回</dt>
+    <dd>${nf(b.fourleg_price)}</dd><dd>${nf(b.baseline_price)}</dd>`;
   const ci = connIdx(b._legs);
   $("heroLegs").innerHTML = b._legs.map((l, i) => `<li class="${ci[0] === i ? "conn" : ""} ${i === 1 || i === 2 ? "trip" : ""}">
       <span class="seg-name">${esc(l.f)} → ${esc(l.t)}<span>${esc(AP[l.f] || "")} → ${esc(AP[l.t] || "")}</span></span>
