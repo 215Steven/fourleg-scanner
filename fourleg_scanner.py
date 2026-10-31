@@ -215,7 +215,7 @@ class BrowserSession:
     RPC_PATH = "/_/FlightsFrontendUi/data/travel.frontend.flights.FlightsFrontendService/GetShoppingResults"
 
     def __init__(self, base: str = "https://www.google.com", lang: str = "zh-TW", currency: str = "TWD",
-                 headless: bool = True, timeout_sec: float = 20):
+                 headless: bool = True, timeout_sec: float = 30):
         from playwright.sync_api import sync_playwright
         self.base, self.lang, self.cur = base.rstrip("/"), lang, currency
         self.timeout_ms = int(timeout_sec * 1000)
@@ -323,6 +323,7 @@ class Fetcher:
         self._last = 0.0
         self.engine = cfg.get("engine", "browser")
         self.browser_base = cfg.get("browser_base", "https://www.google.com")
+        self.browser_timeout = float(cfg.get("browser_timeout_sec", 30))
         self.browser: BrowserSession | None = None
         self._browser_failed = False
         self.currency = cfg.get("currency", "TWD")
@@ -434,7 +435,8 @@ class Fetcher:
         if self.browser is None:
             try:
                 t0 = time.time()
-                self.browser = BrowserSession(self.browser_base, "zh-TW", self.currency)
+                self.browser = BrowserSession(self.browser_base, "zh-TW", self.currency,
+                                              timeout_sec=self.browser_timeout)
                 log_activity("info", f"已在背景開啟 Chrome 查價（{time.time() - t0:.1f} 秒）")
             except Exception as e:
                 self._browser_failed = True
@@ -507,6 +509,9 @@ class Fetcher:
             p, note = None, ("Google 限流" if blocked else f"{type(e).__name__}: {e}"[:80])
             if "timeout" in str(e).lower() or "timed out" in str(e).lower():
                 note = "逾時（可能限流）"
+                if self.browser is not None and self.ok_responses > 0:
+                    # 同一個 Chrome 剛剛還查得到：多半是這組沒有航班、Google 一直沒回，不是被擋
+                    blocked, note = False, "逾時（這組可能沒有航班）"
         if p:
             self.cache[key] = {"t": time.time(), "p": p}
         log_activity("ok" if p else ("block" if blocked else "none"), label,
@@ -541,6 +546,9 @@ class Fetcher:
             p, note = None, ("Google 限流" if blocked else f"{type(e).__name__}: {e}"[:80])
             if "timeout" in str(e).lower() or "timed out" in str(e).lower():
                 note = "逾時（可能限流）"
+                if self.browser is not None and self.ok_responses > 0:
+                    # 同一個 Chrome 剛剛還查得到：多半是這組沒有航班、Google 一直沒回，不是被擋
+                    blocked, note = False, "逾時（這組可能沒有航班）"
         if p:
             self.cache[key] = {"t": time.time(), "p": p}
         log_activity("ok" if p else ("block" if blocked else "none"), label,
@@ -784,6 +792,8 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
     # 之後同一組航司／外站／目的地都用這天
     flex = int(cfg.get("fixed_flex_days", 2) or 0)
     fixed_pick: dict[tuple, dict] = {}
+    dead: set = set()  # 一直查不到、這次掃描略過的航司＋外站＋目的地
+    four_timeouts: dict[tuple, int] = {}
 
     def fixed_for(dest: str, al: str, out: str, d: date) -> dict:
         key = (dest, al, out)
@@ -794,18 +804,26 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
             fixed_pick[key] = cfg
             return cfg
         b = date.fromisoformat(base)
-        best = None
+        best, timeouts = None, 0
         for off in range(-flex, flex + 1):
             c2 = {**cfg, "fixed_leg_date": (b + timedelta(days=off)).isoformat()}
             lg = build_legs(c2, out, dest, d)
             if not lg or max(l.date for l in lg) > horizon:
                 continue
             q = make_query(lg, "multi-city", cfg, al)
-            p, _ = fetcher.cheapest_multicity(make_fq(lg, al), q.url(), adults, cur,
-                                              f"固定段試算 {AIRLINE_NAMES.get(al, al)} {out}→{dest} 固定段 {b + timedelta(days=off):%m/%d}")
+            p, pn = fetcher.cheapest_multicity(make_fq(lg, al), q.url(), adults, cur,
+                                               f"固定段試算 {AIRLINE_NAMES.get(al, al)} {out}→{dest} 固定段 {b + timedelta(days=off):%m/%d}")
             if p and (best is None or p < best[0]):
                 best = (p, c2)
+            if not p and "逾時" in (pn or ""):
+                timeouts += 1
+                if timeouts >= 2 and best is None:
+                    break  # 連續逾時：這條航線多半查不到，不用把前後幾天都試完
         if best is None:
+            if timeouts >= 2:
+                dead.add(key)
+                log_activity("info", f"{AIRLINE_NAMES.get(al, al)} {out}→{dest} 一直查不到（可能沒有這條航線或這段期間沒班），"
+                                     "這次掃描略過這組")
             return cfg  # 這天查不到，下一個出國日再試
         fixed_pick[key] = best[1]
         nd = date.fromisoformat(best[1]["fixed_leg_date"])
@@ -815,7 +833,11 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
 
     # ---- 單一組行程 ----
     def one(d: date, dest: str, al: str, out: str) -> Row | None:
+        if (dest, al, out) in dead:
+            return None
         pcfg = fixed_for(dest, al, out, d)
+        if (dest, al, out) in dead:
+            return None
         legs = build_legs(pcfg, out, dest, d)
         if not legs:
             return None
@@ -857,6 +879,12 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
                     via.append("四腿")
                     break
                 note = note or n4s
+        if r.fourleg_price is None and "逾時" in (note or ""):
+            k3 = (dest, al, out)
+            four_timeouts[k3] = four_timeouts.get(k3, 0) + 1
+            if four_timeouts[k3] >= 2:
+                dead.add(k3)
+                log_activity("info", f"{AIRLINE_NAMES.get(al, al)} {out}→{dest} 連續查不到，這次掃描略過這組")
 
         r.note = note
         r._legs, r._via = legs, via
