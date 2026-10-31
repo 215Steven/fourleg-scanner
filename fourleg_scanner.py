@@ -164,6 +164,11 @@ class Row:
     oneway_url: str = ""
     note: str = ""
     via: str = ""                        # 非空代表直飛查不到，改用經停航班（"四腿"、"直飛基準"）
+    out_rt_price: int | None = None      # 同航司 台北⇄外站 來回（四腿頭尾兩段等於一趟外站旅行）
+    out_rt_url: str = ""
+    combo_price: int | None = None       # 兩趟合計＝台北⇄目的地來回＋台北⇄外站來回
+    combo_saving: int | None = None      # 兩趟合計 − 四腿
+    combo_saving_pct: float | None = None
 
 
 # ---------- 價格解析（容錯版，多城市頁面也能用） ----------
@@ -701,9 +706,14 @@ def evaluate(r: Row, rules: dict, history: list[dict]):
     if r.baseline_price:
         r.fare_saving = r.baseline_price - r.fourleg_price
         r.fare_saving_pct = round(r.fare_saving / r.baseline_price * 100, 1)
-    # 只跟同航司台北來回比
-    if r.fare_saving_pct is not None and r.fare_saving_pct >= rules.get("min_saving_pct", 15):
-        r.deal = "DEAL"
+        if r.out_rt_price:
+            r.combo_price = r.baseline_price + r.out_rt_price
+            r.combo_saving = r.combo_price - r.fourleg_price
+            r.combo_saving_pct = round(r.combo_saving / r.combo_price * 100, 1)
+    # both：跟「台北⇄目的地來回＋台北⇄外站來回」兩趟合計比；dest：只跟台北⇄目的地來回比
+    pct = r.combo_saving_pct if rules.get("basis", "both") == "both" and r.combo_saving_pct is not None \
+        else r.fare_saving_pct
+    r.deal = "DEAL" if pct is not None and pct >= rules.get("min_saving_pct", 15) else ""
 
 
 # ---------- 主流程 ----------
@@ -720,7 +730,8 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
     out_dir.mkdir(exist_ok=True)
     fetcher = Fetcher(cfg, out_dir / "cache.json", offline=offline)
     history = load_history(out_dir / "history.csv")
-    rules = cfg.get("deal_rules", {})
+    rules = {**cfg.get("deal_rules", {}), "basis": cfg.get("deal_basis", "both")}
+    both = rules["basis"] == "both"
     hub = cfg.get("hub", "TPE")
     adults, cur = cfg.get("adults", 1), cfg.get("currency", "TWD")
     fallback = cfg.get("allow_stops_fallback", True)
@@ -797,6 +808,80 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
     flex = int(cfg.get("fixed_flex_days", 2) or 0)
     fixed_pick: dict[tuple, dict] = {}
     dead: set = set()  # 一直查不到、這次掃描略過的航司＋外站＋目的地
+    pruned: set = set()  # 明顯不划算、淘汰的航司＋外站＋目的地
+    out_rt_seen: dict[tuple, tuple] = {}
+    stay = int(cfg.get("outstation_trip_days", 5))
+
+    def out_rt(al: str, out: str, pcfg: dict) -> tuple:
+        """同航司 台北⇄外站 來回：用不轉機那一段的日期，每組航司＋外站只查一次。"""
+        f = pcfg.get("fixed_leg_date")
+        if not both or not f:
+            return None, ""
+        F = date.fromisoformat(f)
+        go, back = (F, F + timedelta(days=stay)) if cfg.get("connect_pair", "12") == "12" \
+            else (F - timedelta(days=stay), F)
+        if go <= date.today():
+            go, back = F, F + timedelta(days=stay)
+        if back > horizon:
+            return None, ""
+        k = (al, out, go)
+        if k not in out_rt_seen:
+            nm = AIRLINE_NAMES.get(al, al)
+            q = make_query([Leg(go, hub, out), Leg(back, out, hub)], "round-trip", cfg, al)
+            p = fetcher.cheapest(q, q.url(), f"外站來回 {nm} {hub}⇄{out} {go:%m/%d}–{back:%m/%d}")[0]
+            u = q.url()
+            if p is None and fallback:
+                qs = make_query([Leg(go, hub, out), Leg(back, out, hub)], "round-trip", cfg, al, [1, 1])
+                p = fetcher.cheapest(qs, qs.url(), f"外站來回經停 {nm} {hub}⇄{out} {go:%m/%d}–{back:%m/%d}")[0]
+                u = qs.url() if p else u
+            out_rt_seen[k] = (p, u)
+        return out_rt_seen[k]
+
+    def eff(r: Row) -> float:
+        """比外站用的成本：四腿票扣掉外站那趟的價值（兩趟都要玩時）。同航司同日期，台北⇄目的地來回相同可略過。"""
+        return r.fourleg_price - ((r.out_rt_price or 0) if both else 0)
+
+    def prune():
+        """前兩個出國日查完後，淘汰明顯不划算的外站。
+        兩趟都要玩：四腿票比「台北⇄目的地來回＋台北⇄外站來回」分開買還貴，才淘汰（外站本身貴不會被誤刪）。
+        只去目的地：比同航司最便宜的外站貴超過 20%（至少 3000）才淘汰。"""
+        if not cfg.get("prune_outstations", True):
+            return
+        firsts = {x.isoformat() for x in stage1[:2]}
+        first_rows = [r for r in rows if r.fourleg_price and r.depart in firsts and getattr(r, "_legs", None)]
+        if both:
+            by_key: dict[tuple, list[Row]] = {}
+            for r in first_rows:
+                if r.out_rt_price is None:
+                    continue
+                if r.baseline_price is None:
+                    add_baseline(r)  # 台北⇄目的地來回同日期各外站共用，只多查 1～2 次
+                    if on_update:
+                        on_update(r, n, total)
+                by_key.setdefault((r.dest, r.airline, r.outstation), []).append(r)
+            for (dest, al, o), rs in by_key.items():
+                sv = [r.combo_saving for r in rs if r.combo_saving is not None]
+                if len(sv) >= 2 and all(x < 0 for x in sv):
+                    pruned.add((dest, al, o))
+                    log_activity("info", f"淘汰 {AIRLINE_NAMES.get(al, al)} {o}→{dest}：前兩個出國日四腿票都比分開買兩趟"
+                                         f"（台北來回＋{o}來回）貴，平均貴約 {-sum(sv) / len(sv):,.0f}，後面的日期不再查")
+            return
+        groups: dict[tuple, dict] = {}
+        for r in first_rows:
+            groups.setdefault((r.airline, r.dest), {}).setdefault(r.outstation, []).append(r.fourleg_price)
+        for (al, dest), by_out in groups.items():
+            avgs = {o: sum(v) / len(v) for o, v in by_out.items() if len(v) >= 2}
+            if len(avgs) < 2:
+                continue
+            best_out = min(avgs, key=avgs.get)
+            best = avgs[best_out]
+            for o, a in avgs.items():
+                gap = a - best
+                if gap > max(3000, 0.2 * best):
+                    pruned.add((dest, al, o))
+                    log_activity("info", f"淘汰 {AIRLINE_NAMES.get(al, al)} {o}→{dest}：前兩個出國日四腿票平均比 "
+                                         f"{best_out} 貴約 {gap:,.0f}，後面的日期不再查")
+
     four_timeouts: dict[tuple, int] = {}
 
     def fixed_for(dest: str, al: str, out: str, d: date) -> dict:
@@ -837,7 +922,7 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
 
     # ---- 單一組行程 ----
     def one(d: date, dest: str, al: str, out: str) -> Row | None:
-        if (dest, al, out) in dead:
+        if (dest, al, out) in dead or (dest, al, out) in pruned:
             return None
         pcfg = fixed_for(dest, al, out, d)
         if (dest, al, out) in dead:
@@ -887,6 +972,10 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
                     via.append("四腿")
                     break
                 note = note or n4s
+        if note == "cache":
+            note = ""  # 沿用 24 小時內查過的結果，不是錯誤
+        if r.fourleg_price:
+            r.out_rt_price, r.out_rt_url = out_rt(al, out, pcfg)
         if r.fourleg_price is None and "逾時" in (note or ""):
             k3 = (dest, al, out)
             four_timeouts[k3] = four_timeouts.get(k3, 0) + 1
@@ -996,7 +1085,7 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
         pick: list[Row] = []
         for (al, dest), rs in groups.items():
             top_dates: list[str] = []
-            for r in sorted(rs, key=lambda x: (x.fourleg_price, x.depart)):
+            for r in sorted(rs, key=lambda x: (eff(x), x.depart)):
                 if r.depart not in top_dates:
                     if len(top_dates) >= top_n:
                         continue
@@ -1020,6 +1109,8 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
         done = {(r.dest, r.airline, r.outstation, r.depart): r.fourleg_price for r in rows}
         extra = []
         for dest, al, out in pairs:
+            if (dest, al, out) in pruned or (dest, al, out) in dead:
+                continue
             got = {d: done.get((dest, al, out, d.isoformat())) for d in stage1}
             prices = [p for p in got.values() if p]
             if not prices:
@@ -1036,7 +1127,9 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
         return extra
 
     try:
-        for d in stage1:
+        for i, d in enumerate(stage1):
+            if i == 2:
+                prune()
             for dest, al, out in pairs:
                 run(d, dest, al, out)
         if coarse:

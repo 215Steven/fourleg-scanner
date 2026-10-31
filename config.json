@@ -45,5 +45,8 @@
   "baseline_top_n": 5,
   "max_days_ahead": 330,
   "early_stop_after": 2,
-  "engine": "browser"
+  "engine": "browser",
+  "deal_basis": "both",
+  "prune_outstations": true,
+  "outstation_trip_days": 5
 }
