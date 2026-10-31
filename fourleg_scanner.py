@@ -324,6 +324,7 @@ class Fetcher:
         self.engine = cfg.get("engine", "browser")
         self.browser_base = cfg.get("browser_base", "https://www.google.com")
         self.browser_timeout = float(cfg.get("browser_timeout_sec", 30))
+        self.mode = self.engine  # 目前使用的查價方式，被擋時會在 browser／direct 之間切換
         self.browser: BrowserSession | None = None
         self._browser_failed = False
         self.currency = cfg.get("currency", "TWD")
@@ -356,12 +357,15 @@ class Fetcher:
             # 被擋：丟掉被標記的連線，等一下再重新建立（30 秒、60 秒…逐次拉長，最多 3 分鐘）
             self._client = None
             wait = min(180, self.backoff * self.blocked_streak)
-            if self.browser is not None:
-                try:
-                    self.browser.reset()
-                except Exception:
-                    pass
-            log_activity("block", f"Google 限流，{wait} 秒後換新連線重試（連續第 {self.blocked_streak} 次，"
+            how = "換新連線"
+            if self.engine == "browser" and not self._browser_failed:
+                # 兩種查價方式輪流換：背景 Chrome 被擋 → 改直接連線；直接連線被擋 → 重開一個全新的背景 Chrome
+                if self.mode == "browser":
+                    self.close()
+                    self.mode, how = "direct", "改用直接連線"
+                else:
+                    self.mode, how = "browser", "重新開一個全新的背景 Chrome"
+            log_activity("block", f"Google 限流，{wait} 秒後{how}重試（連續第 {self.blocked_streak} 次，"
                                   f"{self.block_limit} 次就自動停止）")
             time.sleep(wait)
 
@@ -430,7 +434,7 @@ class Fetcher:
 
     def use_browser(self) -> BrowserSession | None:
         """需要時才開瀏覽器；開不起來就改回直接連線。"""
-        if self.engine != "browser" or self._browser_failed or self.offline:
+        if self.engine != "browser" or self.mode != "browser" or self._browser_failed or self.offline:
             return None
         if self.browser is None:
             try:
@@ -861,6 +865,10 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
         else:
             r.fourleg_price, note = fetcher.cheapest_multicity(make_fq(legs, al), r.fourleg_url, adults, cur,
                                                                f"四腿 {tag} 直飛")
+            if r.fourleg_price is None and "限流" in (note or ""):
+                # 剛被擋、已換查價方式：同一筆直飛再查一次，免得直接跳去查經停
+                r.fourleg_price, note = fetcher.cheapest_multicity(make_fq(legs, al), r.fourleg_url, adults, cur,
+                                                                   f"四腿 {tag} 直飛（重試）")
         if r.fourleg_price is None and fallback:
             # 長程線常沒有每天直飛：外站段維持直飛，台北↔目的地兩段放寬為最多經停一次
             tries = [(0, [0, 1, 1, 0])]
