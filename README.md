@@ -58,7 +58,7 @@
 ### 手動執行
 
 ```bash
-pip install faster-flights typing_extensions
+pip install faster-flights typing_extensions playwright
 python app.py      # 開啟 http://127.0.0.1:8765
 ```
 
@@ -80,6 +80,7 @@ python app.py      # 開啟 http://127.0.0.1:8765
 - **是否允許在台灣停留、停留多久、改票規則，依各票種而定**，購票前請看清楚票價規則。
 - **不要一次掃太多組合。** 短時間大量查詢會被 Google 暫時限流（查不到價格或逾時）。建議先用一家航空、一個外站、一個目的地試掃，日期每 7 天掃一次。被擋時程式會自動等待重試，連續被擋就會停止，請過一段時間再掃。
 - 掃描都在你自己的電腦、用你自己的網路進行，不經過任何伺服器，也不會產生費用。
+- 查價時會在背景開一個看不見的 Chrome 分頁（沒有 Chrome 會用 Edge，或第一次自動下載約 150 MB 的瀏覽器元件），連線方式跟你平常用瀏覽器查 Google Flights 一樣，比較不容易被擋。設定 `"engine": "direct"` 可改回直接連線。
 
 ## 免責聲明
 

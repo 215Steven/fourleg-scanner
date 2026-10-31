@@ -31,11 +31,11 @@ if [ -n "$PY" ]; then
     echo "第一次執行：建立環境（約 1 分鐘）"
     "$PY" -m venv .venv || { echo "建立環境失敗"; read -r; exit 1; }
   fi
-  if ! .venv/bin/python -c "import typing_extensions; from fast_flights.shopping import fetch_shopping_results" >/dev/null 2>&1; then
+  if ! .venv/bin/python -c "import typing_extensions, playwright; from fast_flights.shopping import fetch_shopping_results" >/dev/null 2>&1; then
     echo "安裝 faster-flights …"
     .venv/bin/python -m pip install -q --upgrade pip
     .venv/bin/python -m pip uninstall -y -q fast-flights >/dev/null 2>&1
-    .venv/bin/python -m pip install -q faster-flights typing_extensions || { echo "安裝失敗，請檢查網路"; read -r; exit 1; }
+    .venv/bin/python -m pip install -q faster-flights typing_extensions playwright || { echo "安裝失敗，請檢查網路"; read -r; exit 1; }
   fi
   echo "啟動中，瀏覽器會自動開啟。要結束請關閉這個視窗。"
   exec .venv/bin/python app.py
@@ -49,5 +49,5 @@ else
   command -v uv >/dev/null 2>&1 && UV="$(command -v uv)"
   echo "準備 Python 3.12 與套件（第一次約 1～2 分鐘）"
   echo "啟動後瀏覽器會自動開啟。要結束請關閉這個視窗。"
-  exec "$UV" run --python 3.12 --with faster-flights --with typing_extensions python app.py
+  exec "$UV" run --python 3.12 --with faster-flights --with typing_extensions --with playwright python app.py
 fi

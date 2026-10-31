@@ -109,6 +109,10 @@ BLOCKED_MSG = ("Google 目前不回應你的網路（掃描一開始就連續被
 FIXED_PICKS: list[str] = []  # 固定段日期的彈性挑選結果
 
 
+class _Done(Exception):
+    """瀏覽器查價成功或查無，跳出直接連線的流程。"""
+
+
 class NetworkBlocked(Exception):
     """掃描一開始就連續被擋或逾時。"""
 
@@ -199,6 +203,109 @@ def extract_prices(html_text: str) -> list[int]:
     return prices
 
 
+# ---------- 瀏覽器查價（用電腦上的 Chrome，連線特徵跟一般人用瀏覽器查一樣） ----------
+
+class BrowserBlocked(Exception):
+    pass
+
+
+class BrowserSession:
+    """在背景開一個 Chrome 分頁停在 Google Flights，所有查詢都由這個分頁送出。"""
+
+    RPC_PATH = "/_/FlightsFrontendUi/data/travel.frontend.flights.FlightsFrontendService/GetShoppingResults"
+
+    def __init__(self, base: str = "https://www.google.com", lang: str = "zh-TW", currency: str = "TWD",
+                 headless: bool = True, timeout_sec: float = 20):
+        from playwright.sync_api import sync_playwright
+        self.base, self.lang, self.cur = base.rstrip("/"), lang, currency
+        self.timeout_ms = int(timeout_sec * 1000)
+        self._pw = sync_playwright().start()
+        self._browser = self._launch(headless)
+        ua = self._real_user_agent()
+        self._ctx = self._browser.new_context(locale=lang, user_agent=ua)
+        self.page = None
+        self.reset()
+
+    def _launch(self, headless: bool):
+        errors = []
+        for kw in ({"channel": "chrome"}, {"channel": "msedge"}, {}):
+            try:
+                return self._pw.chromium.launch(headless=headless, **kw)
+            except Exception as e:  # 沒裝 Chrome／Edge
+                errors.append(str(e)[:80])
+        # 都沒有：第一次使用時下載 Playwright 內建的 Chromium（約 150 MB）
+        import subprocess
+        log_activity("info", "電腦上找不到 Chrome，第一次使用先下載瀏覽器元件（約 150 MB，幾分鐘）")
+        subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=False)
+        return self._pw.chromium.launch(headless=headless)
+
+    def _real_user_agent(self) -> str:
+        pg = self._browser.new_page()
+        try:
+            ua = pg.evaluate("navigator.userAgent")
+        finally:
+            pg.close()
+        return ua.replace("HeadlessChrome", "Chrome")
+
+    def reset(self):
+        """重新開一個分頁到 Google Flights（被擋之後換新分頁）。"""
+        if self.page is not None:
+            try:
+                self.page.close()
+            except Exception:
+                pass
+        self.page = self._ctx.new_page()
+        self.page.goto(f"{self.base}/travel/flights?hl={self.lang}&curr={self.cur}",
+                       wait_until="domcontentloaded", timeout=self.timeout_ms + 10000)
+
+    def _fetch(self, path: str, body: str | None) -> tuple[int, str]:
+        js = """async ([path, body, tmo, lang, cur]) => {
+          const w = window.WIZ_global_data || {};
+          const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), tmo);
+          try {
+            let r;
+            if (body === null) {
+              r = await fetch(path, {signal: ctrl.signal, credentials: "include"});
+            } else {
+              const qs = `f.sid=${w.FdrFJe || ""}&bl=${w.cfb2h || ""}&hl=${lang}&gl=TW&curr=${cur}&soc-app=162&soc-platform=1&soc-device=1&rt=c`;
+              r = await fetch(path + "?" + qs, {method: "POST", signal: ctrl.signal, credentials: "include",
+                body: body + "&at=" + encodeURIComponent(w.SNlM0e || "") + "&",
+                headers: {"content-type": "application/x-www-form-urlencoded;charset=UTF-8", "x-same-domain": "1",
+                          "x-goog-ext-259736195-jspb": JSON.stringify([lang, "TW", cur, 1, null, [0], null, null, 1, []])}});
+            }
+            return [r.status, await r.text()];
+          } catch (e) { return [0, "ERROR " + String(e)]; }
+          finally { clearTimeout(timer); }
+        }"""
+        status, text = self.page.evaluate(js, [path, body, self.timeout_ms, self.lang, self.cur])
+        if status == 0:
+            raise TimeoutError("timeout: " + text) if "abort" in text.lower() else RuntimeError(text)
+        head = text[:3000].lower()
+        if status in (403, 429) or "unusual traffic" in head or "/sorry/" in head:
+            raise BrowserBlocked(f"too many requests (HTTP {status})")
+        return status, text
+
+    def rpc(self, encoded_body: str) -> str:
+        body = encoded_body.rstrip("&")
+        return self._fetch(self.RPC_PATH, body)[1]
+
+    def get(self, url: str) -> str:
+        path = url.split("google.com", 1)[1] if "google.com" in url else url
+        return self._fetch(path, None)[1]
+
+    def close(self):
+        for fn in (lambda: self._ctx.close(), lambda: self._browser.close(), lambda: self._pw.stop()):
+            try:
+                fn()
+            except Exception:
+                pass
+
+
+def rpc_prices(text: str) -> list[int]:
+    """從 GetShoppingResults 回應取出每個行程的總價（[[null,價格],"票價代碼"…）。"""
+    return [int(m) for m in re.findall(r'\[\[null,(\d{3,7})\],\\*"', text)]
+
+
 # ---------- 查詢與快取 ----------
 
 class Fetcher:
@@ -214,6 +321,11 @@ class Fetcher:
             except Exception:
                 self.cache = {}
         self._last = 0.0
+        self.engine = cfg.get("engine", "browser")
+        self.browser_base = cfg.get("browser_base", "https://www.google.com")
+        self.browser: BrowserSession | None = None
+        self._browser_failed = False
+        self.currency = cfg.get("currency", "TWD")
         self.blocked_streak = 0
         self.ok_responses = 0  # 本次掃描 Google 有正常回應的次數（含查無航班）
         self.early_stop = int(cfg.get("early_stop_after", 2))
@@ -243,6 +355,11 @@ class Fetcher:
             # 被擋：丟掉被標記的連線，等一下再重新建立（30 秒、60 秒…逐次拉長，最多 3 分鐘）
             self._client = None
             wait = min(180, self.backoff * self.blocked_streak)
+            if self.browser is not None:
+                try:
+                    self.browser.reset()
+                except Exception:
+                    pass
             log_activity("block", f"Google 限流，{wait} 秒後換新連線重試（連續第 {self.blocked_streak} 次，"
                                   f"{self.block_limit} 次就自動停止）")
             time.sleep(wait)
@@ -310,6 +427,26 @@ class Fetcher:
             self.cache[key] = {"t": time.time(), "p": out}
         return out
 
+    def use_browser(self) -> BrowserSession | None:
+        """需要時才開瀏覽器；開不起來就改回直接連線。"""
+        if self.engine != "browser" or self._browser_failed or self.offline:
+            return None
+        if self.browser is None:
+            try:
+                t0 = time.time()
+                self.browser = BrowserSession(self.browser_base, "zh-TW", self.currency)
+                log_activity("info", f"已在背景開啟 Chrome 查價（{time.time() - t0:.1f} 秒）")
+            except Exception as e:
+                self._browser_failed = True
+                log_activity("info", f"瀏覽器模式無法啟動，改用直接連線：{str(e)[:80]}")
+                return None
+        return self.browser
+
+    def close(self):
+        if self.browser is not None:
+            self.browser.close()
+            self.browser = None
+
     def save(self):
         self.cache_path.write_text(json.dumps(self.cache, ensure_ascii=False), encoding="utf-8")
 
@@ -332,7 +469,19 @@ class Fetcher:
         self._wait()
         t0 = time.time()
         blocked = False
+        br = self.use_browser()
         try:
+            if br is not None:
+                body = _shop._encode_shopping_request(fq, [], 1, passenger_counts=(adults, 0, 0, 0))
+                raw = br.rpc(body)
+                ps = rpc_prices(raw)
+                p = min(ps) if ps else None
+                note = ""
+                if not p:
+                    blocked = len(raw) < 2000 and looks_blocked(raw)  # 被擋時回應很短（[13] 之類）
+                    note = "Google 限流" if blocked else "查無航班"
+                    self._debug(key, url, raw)
+                raise _Done()
             if getattr(self, "_client", None) is None:
                 self._client = _build_default_client()
             _, price, raw, found = _shop.fetch_shopping_results(
@@ -351,6 +500,8 @@ class Fetcher:
                 blocked = diag == "blocked" or looks_blocked(raw)
                 note = "Google 限流" if blocked else "查無航班"
                 self._debug(key, url, raw)
+        except _Done:
+            pass
         except Exception as e:
             blocked = looks_blocked(err=str(e))
             p, note = None, ("Google 限流" if blocked else f"{type(e).__name__}: {e}"[:80])
@@ -375,8 +526,9 @@ class Fetcher:
         self._wait()
         t0 = time.time()
         blocked = False
+        br = self.use_browser()
         try:
-            page = fetch_flights_html(query)
+            page = br.get(url) if br is not None else fetch_flights_html(query)
             prices = extract_prices(page)
             p = min(prices) if prices else None
             note = ""
@@ -882,6 +1034,7 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
             LAST_STOP_REASON = BLOCKED_MSG
             log_activity("block", LAST_STOP_REASON)
     fetcher.save()
+    fetcher.close()
 
     if not offline:
         append_history(out_dir / "history.csv", rows)

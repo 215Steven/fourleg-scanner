@@ -44,5 +44,6 @@
   "baseline_mode": "top",
   "baseline_top_n": 5,
   "max_days_ahead": 330,
-  "early_stop_after": 2
+  "early_stop_after": 2,
+  "engine": "browser"
 }

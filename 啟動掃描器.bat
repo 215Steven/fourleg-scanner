@@ -30,7 +30,7 @@ if not exist "%UV%" (
 :run_uv
 echo 準備 Python 3.12 與套件（第一次約 1～2 分鐘）
 echo 啟動後瀏覽器會自動開啟。要結束請關閉這個視窗。
-"%UV%" run --python 3.12 --with faster-flights --with typing_extensions python app.py
+"%UV%" run --python 3.12 --with faster-flights --with typing_extensions --with playwright python app.py
 pause
 exit /b
 
@@ -39,11 +39,11 @@ if not exist ".venv\Scripts\python.exe" (
   echo 第一次執行：建立環境（約 1 分鐘）
   %PY% -m venv .venv
 )
-".venv\Scripts\python.exe" -c "import typing_extensions; from fast_flights.shopping import fetch_shopping_results" >nul 2>&1
+".venv\Scripts\python.exe" -c "import typing_extensions, playwright; from fast_flights.shopping import fetch_shopping_results" >nul 2>&1
 if errorlevel 1 (
   echo 安裝 faster-flights …
   ".venv\Scripts\python.exe" -m pip install -q --upgrade pip
-  ".venv\Scripts\python.exe" -m pip install -q faster-flights typing_extensions
+  ".venv\Scripts\python.exe" -m pip install -q faster-flights typing_extensions playwright
 )
 echo 啟動中，瀏覽器會自動開啟。要結束請關閉這個視窗。
 ".venv\Scripts\python.exe" app.py
