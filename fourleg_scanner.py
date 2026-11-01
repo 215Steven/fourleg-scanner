@@ -997,6 +997,8 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
                 note = note or n4s
         if note == "cache":
             note = ""  # 沿用 24 小時內查過的結果，不是錯誤
+        elif note == "dry-run":
+            note = "未查價"
         if r.fourleg_price:
             r.out_rt_price, r.out_rt_url = out_rt(al, out, pcfg)
         if r.fourleg_price is None and "逾時" in (note or ""):
@@ -1174,6 +1176,27 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
     except NetworkBlocked:
         LAST_STOP_REASON = BLOCKED_MSG
         log_activity("block", LAST_STOP_REASON)
+    if LAST_STOP_REASON.startswith("Google") or LAST_STOP_REASON == BLOCKED_MSG:
+        # 被限流停下：還沒查的組合也列出來，附上 Google Flights 查票連結，讓使用者手動點
+        done = {(r.depart, r.dest, r.airline, r.outstation) for r in rows}
+        added = 0
+        for d in dates:
+            for dest, al, out in pairs:
+                k = (dest, al, out)
+                if (d.isoformat(), dest, al, out) in done or k in dead or added >= 300:
+                    continue
+                lg = build_legs(fixed_pick.get(k, cfg), out, dest, d)
+                if not lg or max(l.date for l in lg) > horizon:
+                    continue
+                r = Row(al, out, dest, d.isoformat(), legs_text(lg), note="未查價")
+                r.fourleg_url = make_query(lg, "multi-city", cfg, al).url()
+                r.baseline_url = make_query([lg[1], lg[2]], "round-trip", cfg, al).url()
+                rows.append(r)
+                added += 1
+                if on_row:
+                    on_row(r, n, total)
+        if added:
+            log_activity("info", f"還沒查的 {added} 組已列在結果表（標「未查價」），可以點「四腿」「來回」到 Google Flights 手動查")
     if top_mode and not (LAST_STOP_REASON.startswith("Google") or LAST_STOP_REASON == BLOCKED_MSG or (stop_event is not None and stop_event.is_set())):
         try:
             baseline_stage()

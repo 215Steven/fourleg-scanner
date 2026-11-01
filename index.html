@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>四腿外站票掃描器</title>
+<script>try{var t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t;}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -21,7 +22,7 @@
 }
 :root{color-scheme:light}
 @media (prefers-color-scheme: dark){
-  :root{
+  :root:not([data-theme="light"]){
     color-scheme:dark;
     --bg:#141614; --surface:#1b1e1c; --surface-2:#232724; --ink:#eceee9; --ink-2:#b9bcb5; --mut:#8a8e86;
     --line:#2c312d; --line-strong:#3a403b;
@@ -29,6 +30,14 @@
     --neg:#e39a6f; --neg-soft:#35241b;
     --shadow:0 1px 0 rgb(0 0 0 / .3), 0 8px 24px -12px rgb(0 0 0 / .5);
   }
+}
+:root[data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#141614; --surface:#1b1e1c; --surface-2:#232724; --ink:#eceee9; --ink-2:#b9bcb5; --mut:#8a8e86;
+    --line:#2c312d; --line-strong:#3a403b;
+    --acc:#5fd0aa; --acc-ink:#0c1a14; --acc-soft:#1b3129; --acc-line:#2f5a4b;
+    --neg:#e39a6f; --neg-soft:#35241b;
+    --shadow:0 1px 0 rgb(0 0 0 / .3), 0 8px 24px -12px rgb(0 0 0 / .5);
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -39,13 +48,18 @@ button,input,select{font:inherit;color:inherit}
 svg.i{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 
 /* ---------- top bar ---------- */
-.top{max-width:1440px;margin:0 auto;padding:20px 24px 14px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:24px;align-items:end}
+.top{max-width:1440px;margin:0 auto;padding:20px 24px 14px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:24px;align-items:end}
+.theme{display:inline-flex;padding:2px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.theme button{height:26px;padding:0 9px;border:0;border-radius:6px;background:transparent;color:var(--mut);font-size:12px;cursor:pointer;transition:background-color .15s,color .15s}
+.theme button[aria-pressed="true"]{background:var(--surface-2);color:var(--ink);font-weight:600}
+.theme button:hover{color:var(--ink)}
 .brand h1{font:600 22px/1.1 var(--display);letter-spacing:-.02em;margin:0}
 .brand p{margin:4px 0 0;color:var(--mut);font-size:13px;text-wrap:pretty}
 .run{display:flex;align-items:center;justify-content:flex-end;gap:12px;min-width:260px}
 .run .meter{flex:0 0 160px;height:4px;border-radius:2px;background:var(--line);overflow:hidden}
 .run .meter i{display:block;height:100%;width:0;background:var(--acc);transition:width .4s cubic-bezier(.2,0,0,1)}
-.run .label{font-size:12.5px;line-height:1.5;color:var(--ink-2);text-align:right;max-width:860px;text-wrap:pretty}
+.run .label{font-size:12.5px;line-height:1.5;color:var(--ink-2);text-align:right;max-width:860px;text-wrap:pretty;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--line-strong);flex:none}
 .dot.live{background:var(--acc);box-shadow:0 0 0 0 var(--acc);animation:pulse 1.6s infinite}
 .dot.err{background:var(--neg)}
@@ -53,7 +67,7 @@ svg.i{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-widt
 
 /* ---------- layout ---------- */
 .layout{max-width:1440px;margin:0 auto;padding:0 24px 40px;display:grid;grid-template-columns:320px minmax(0,1fr);gap:20px;align-items:start}
-@media (max-width:960px){.layout{grid-template-columns:minmax(0,1fr);padding:0 16px 32px}.top{grid-template-columns:1fr;padding:16px}.run{min-width:0}}
+@media (max-width:960px){.layout{grid-template-columns:minmax(0,1fr);padding:0 16px 32px}.top{grid-template-columns:1fr auto;padding:16px}.top .run{grid-column:1/-1;grid-row:2;min-width:0;justify-content:flex-start}.top .theme{grid-column:2;grid-row:1;align-self:start}.run .label{text-align:left}}
 
 /* ---------- settings ---------- */
 .settings{position:sticky;top:16px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);display:flex;flex-direction:column;max-height:calc(100dvh - 32px)}
@@ -114,6 +128,7 @@ input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible,.c
 .switch{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2);margin-top:10px;cursor:pointer}
 .switch input{width:16px;height:16px;accent-color:var(--acc);margin:0}
 .actions{padding:12px 16px 16px;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr auto;gap:8px;background:var(--surface);border-radius:0 0 14px 14px}
+.actions .linkbtn{grid-column:1/-1;height:34px;font-weight:500;font-size:13px;color:var(--ink-2)}
 .btn{height:40px;padding:0 16px;border-radius:9px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-weight:600;
   display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:transform .15s ease-out,background-color .15s,opacity .15s}
 .btn.primary{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)}
@@ -263,6 +278,11 @@ td a{color:var(--ink-2);text-decoration:underline;text-decoration-color:var(--li
     <div class="meter" aria-hidden="true"><i id="barFill"></i></div>
     <span class="label num" id="statusText">尚未掃描</span>
   </div>
+  <div class="theme" role="group" aria-label="畫面主題">
+    <button type="button" data-theme="auto">系統</button>
+    <button type="button" data-theme="light">淺色</button>
+    <button type="button" data-theme="dark">深色</button>
+  </div>
 </header>
 
 <p class="sr" id="live" role="status" aria-live="polite"></p>
@@ -336,6 +356,7 @@ td a{color:var(--ink-2);text-decoration:underline;text-decoration-color:var(--li
       <button class="btn primary" id="go" type="button">
         <svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>開始掃描</button>
       <button class="btn" id="stopBtn" type="button" disabled>停止</button>
+      <button class="btn linkbtn" id="linksBtn" type="button" title="不查價、不會被限流，直接列出每一組的 Google Flights 查票連結">只給查票連結（不查價）</button>
       <p class="estimate num" id="estimate"></p>
     </div>
   </aside>
@@ -395,7 +416,7 @@ td a{color:var(--ink-2);text-decoration:underline;text-decoration-color:var(--li
           <tbody id="tbody"></tbody>
         </table>
       </div>
-      <p class="foot">票價差＝同航司台北來回 − 四腿票。每段預設只查直飛；查不到時，台北↔目的地兩段改查同航司、最多經停一次並標「經停」，此時台北來回也一併比經停票價，基準一致。台灣→外站單程不限航司，僅供參考、不計入。歐美回程以抵達台北的日期計算轉機。金額為新台幣，依左側成人人數計。價格為 Google Flights 參考價，下單前請到航司官網用「多個城市」重查，並確認票種是否允許台灣停留。</p>
+      <p class="foot">比台北來回省＝同航司台北來回 − 四腿票。每段預設只查直飛；查不到時，台北↔目的地兩段改查同航司、最多經停一次並標「經停」，台北來回也一併比經停票價。短程線隔天轉機，歐美長程線以抵達台北那天計算。被限流而沒查到的組合會標「未查價」，可以點「四腿」「來回」到 Google Flights 手動查。金額為新台幣，依左側成人人數計；價格為 Google Flights 參考價，下單前請到航司官網用「多個城市」重查，並確認票種是否允許台灣停留。</p>
     </section>
   </main>
 </div>
@@ -644,7 +665,7 @@ function render(){
         <td>${esc(AP[r.outstation] || "")} <code class="note">${esc(r.outstation)}</code></td>
         <td class="num">${esc(r.depart)}</td>
         <td><span class="mini">${mini}</span></td>
-        <td class="n">${noPrice ? `<span class="note" title="${esc(r.note || "")}">${esc((r.note || "查無價格").length > 14 ? (r.note || "").slice(0, 14) + "…" : (r.note || "查無價格"))}</span>` : `${(r.via || "").includes("四腿") ? `<span class="via" title="這天查不到全程直飛，台北↔目的地改用同航司經停航班">經停</span>` : ""}${nf(r.fourleg_price)}`}</td>
+        <td class="n">${noPrice ? `<span class="note" title="${esc(r.note === "未查價" ? "這組還沒查價，請點右邊「四腿」「來回」到 Google Flights 手動查" : r.note || "")}">${esc((r.note || "查無價格").length > 14 ? (r.note || "").slice(0, 14) + "…" : (r.note || "查無價格"))}</span>` : `${(r.via || "").includes("四腿") ? `<span class="via" title="這天查不到全程直飛，台北↔目的地改用同航司經停航班">經停</span>` : ""}${nf(r.fourleg_price)}`}</td>
         <td class="n">${/台北來回|直飛基準/.test(r.via || "") ? `<span class="via" title="同航司經停來回（與經停四腿票比較基準一致）">經停</span>` : ""}${nf(r.baseline_price)}</td>
         <td class="n ${fs > 0 ? "pos" : fs < 0 ? "neg" : ""}" title="${useCombo(r) ? `兩趟合計 ${nf(r.combo_price)} − 四腿 ${nf(r.fourleg_price)}` : "台北來回 − 四腿"}">${sf(fs)}<span class="pct">${pf(pctOf(r))}</span></td>
         <td>${links}</td></tr>`;
@@ -749,6 +770,7 @@ function setStatus(kind, text, pct){
   }
   $("dot").className = "dot" + (kind === "running" ? " live" : kind === "error" ? " err" : "");
   $("statusText").innerHTML = text;
+  $("statusText").title = text.replace(/<[^>]+>/g, "");
   if (pct != null) $("barFill").style.width = pct + "%";
 }
 /* ---------- 查詢紀錄 ---------- */
@@ -789,10 +811,10 @@ async function poll(){
   render();
   if (r.state !== "running") stopPolling();
 }
-function stopPolling(){ clearInterval(polling); polling = null; $("go").disabled = false; $("stopBtn").disabled = true; }
+function stopPolling(){ clearInterval(polling); polling = null; $("go").disabled = false; $("linksBtn").disabled = false; $("stopBtn").disabled = true; }
 
 /* ---------- events ---------- */
-$("go").onclick = async () => {
+async function startScan(dryRun){
   const c = collect();
   if (!c.airlines.length || !c.outstations.length || !c.destinations.length){
     setStatus("error", `<span class="err">航司、外站、目的地至少各選一個</span>`); return; }
@@ -803,15 +825,25 @@ $("go").onclick = async () => {
   let res;
   try {
     res = await fetch("/api/scan", {method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({config: c, save: $("save").checked, dry_run: $("dry").checked})}).then(r => r.json());
+      body: JSON.stringify({config: c, save: $("save").checked, dry_run: dryRun})}).then(r => r.json());
   } catch { setStatus("error", `<span class="err">連不到掃描器，請重新雙擊啟動檔</span>`); return; }
   if (!res.ok){ setStatus("error", `<span class="err">${esc(res.error)}</span>`); return; }
   cfg = c; rows = []; rowsRev = -1; cellFilter = null; resetActivity();
   $("act").hidden = false; $("act").classList.remove("closed"); $("actToggle").textContent = "收合";
-  $("go").disabled = true; $("stopBtn").disabled = false;
-  setStatus("running", "掃描中…", 0); render();
-  polling = setInterval(poll, 1500);
-};
+  $("go").disabled = true; $("linksBtn").disabled = true; $("stopBtn").disabled = false;
+  setStatus("running", dryRun ? "產生查票連結中…" : "掃描中…", 0); render();
+  polling = setInterval(poll, dryRun ? 600 : 1500);
+}
+$("go").onclick = () => startScan(false);
+$("linksBtn").onclick = () => startScan(true);
+function setTheme(t){
+  const v = t === "light" || t === "dark" ? t : "auto";
+  if (v === "auto") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = v;
+  document.querySelectorAll("[data-theme]").forEach(b => { if (b.tagName === "BUTTON") b.setAttribute("aria-pressed", b.dataset.theme === v ? "true" : "false"); });
+  try { localStorage.setItem("theme", v); } catch (e) {}
+}
+document.querySelectorAll("button[data-theme]").forEach(b => b.onclick = () => setTheme(b.dataset.theme));
+setTheme((() => { try { return localStorage.getItem("theme"); } catch (e) { return null; } })());
 $("cellChip").onclick = () => { cellFilter = null; render(); };
 $("stopBtn").onclick = () => { fetch("/api/stop", {method: "POST"}); $("statusText").textContent = "停止中…"; };
 $("outAll").onclick = () => quickSelect("outstations", true);
