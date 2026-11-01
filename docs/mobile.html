@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>四腿票查票連結</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* 版面：手機單欄，上面設定卡、下面是一張張可點的行程卡；平板以上變成左右兩欄 */
+:root{
+  --bg:#f2f1ec; --surface:#fbfaf7; --surface-2:#ecebe4; --ink:#1a1d1b; --ink-2:#464a44; --mut:#6b6e66;
+  --line:#dddbd2; --acc:#0e6b55; --acc-ink:#f5fbf8; --acc-soft:#dcece5; --warn:#a2512a; --warn-soft:#f4e4d9;
+  --display:"Noto Sans TC","PingFang TC",system-ui,sans-serif;
+  --body:"Noto Sans TC","PingFang TC",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#131614; --surface:#1b1f1c; --surface-2:#242925; --ink:#ebeee9; --ink-2:#b8bdb5; --mut:#8b9088;
+    --line:#2d332e; --acc:#5fd0aa; --acc-ink:#0b1a14; --acc-soft:#1b3229; --warn:#e5a078; --warn-soft:#37261c;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#131614; --surface:#1b1f1c; --surface-2:#242925; --ink:#ebeee9; --ink-2:#b8bdb5; --mut:#8b9088;
+  --line:#2d332e; --acc:#5fd0aa; --acc-ink:#0b1a14; --acc-soft:#1b3229; --warn:#e5a078; --warn-soft:#37261c;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.6 var(--body);-webkit-font-smoothing:antialiased;padding:0 16px 40px}
+button,input,select{font:inherit;color:inherit}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.wrap{max-width:1080px;margin:0 auto}
+header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:20px 0 14px}
+h1{font:700 21px/1.25 var(--display);margin:0;text-wrap:balance}
+header p{margin:4px 0 0;color:var(--mut);font-size:13px}
+.theme{display:inline-flex;padding:2px;border:1px solid var(--line);border-radius:9px;background:var(--surface);flex:none}
+.theme button{min-height:32px;padding:0 9px;border:0;border-radius:7px;background:transparent;color:var(--mut);font-size:12.5px;cursor:pointer}
+.theme button[aria-pressed="true"]{background:var(--surface-2);color:var(--ink);font-weight:600}
+.grid{display:grid;gap:16px}
+@media (min-width:820px){.grid{grid-template-columns:340px minmax(0,1fr);align-items:start}.form{position:sticky;top:16px}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px}
+.form{padding:16px;display:grid;gap:14px}
+.form h2{font-size:13px;font-weight:700;color:var(--ink-2);margin:0}
+label.f{display:block;font-size:12.5px;color:var(--mut);margin-bottom:4px}
+select,input[type=date],input[type=number]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:16px}
+.row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;padding:3px;background:var(--surface-2);border-radius:11px;gap:3px}
+.seg button{min-height:40px;border:0;border-radius:8px;background:transparent;color:var(--ink-2);cursor:pointer;font-size:14px}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:700;box-shadow:0 1px 2px rgb(0 0 0 / .08)}
+.hint{font-size:12.5px;color:var(--mut);margin:0}
+.warn{font-size:12.5px;color:var(--warn);background:var(--warn-soft);border-radius:9px;padding:8px 10px;margin:0}
+button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.list{display:grid;gap:10px}
+.sum{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:2px 2px 0;color:var(--mut);font-size:13px}
+.trip{padding:14px 14px 12px;display:grid;gap:10px}
+.trip .top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.trip .d{font:700 17px/1.2 var(--display)}
+.trip .d small{font:500 12.5px var(--body);color:var(--mut);margin-left:6px}
+.legs{display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:12.5px}
+.legs span{padding:3px 7px;border-radius:6px;background:var(--surface-2);color:var(--ink-2)}
+.legs span.c{background:var(--acc-soft);color:var(--ink)}
+.legs b{font-size:11px;color:var(--acc)}
+.btns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.btns a{display:flex;align-items:center;justify-content:center;min-height:44px;border-radius:10px;text-decoration:none;font-weight:700;font-size:14px}
+.btns a.p{background:var(--acc);color:var(--acc-ink)}
+.btns a.s{border:1px solid var(--line);color:var(--ink)}
+.note{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center}
+.note input{min-height:38px;font-size:15px}
+.save{font-size:13px;color:var(--mut);white-space:nowrap;min-width:84px;text-align:right}
+.save.pos{color:var(--acc);font-weight:700}
+.save.neg{color:var(--warn)}
+.empty{padding:20px;color:var(--mut);text-align:center}
+footer{margin-top:22px;color:var(--mut);font-size:12.5px;display:grid;gap:6px;max-width:720px}
+footer a{color:var(--acc)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+<script>try{var t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t;}catch(e){}</script>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div>
+    <h1>四腿票查票連結</h1>
+    <p>華航・長榮・星宇外站四腿票，手機一鍵開 Google Flights 比價</p>
+  </div>
+  <div class="theme" role="group" aria-label="畫面主題">
+    <button type="button" data-t="auto">系統</button><button type="button" data-t="light">淺色</button><button type="button" data-t="dark">深色</button>
+  </div>
+</header>
+
+<div class="grid">
+  <form class="card form" id="form" onsubmit="return false">
+    <div>
+      <h2>航空公司</h2>
+      <div class="seg" id="al" role="group" aria-label="航空公司" style="margin-top:6px">
+        <button type="button" data-v="BR">長榮</button><button type="button" data-v="CI">華航</button><button type="button" data-v="JX">星宇</button>
+      </div>
+    </div>
+    <div class="row2">
+      <div><label class="f" for="out">外站（從哪裡出發）</label><select id="out"></select></div>
+      <div><label class="f" for="dest">目的地（去哪玩）</label><select id="dest"></select></div>
+    </div>
+    <div>
+      <h2>四腿票型</h2>
+      <div class="seg" id="pair" role="group" aria-label="轉機段" style="margin-top:6px">
+        <button type="button" data-v="12">前面轉（1、2）</button><button type="button" data-v="34">後面轉（3、4）</button>
+      </div>
+    </div>
+    <div><label class="f" for="fixed" id="fixedLabel">第 4 段日期（台北→外站）</label><input type="date" id="fixed"></div>
+    <div class="row2">
+      <div><label class="f" for="start">出國日最早</label><input type="date" id="start"></div>
+      <div><label class="f" for="end">出國日最晚</label><input type="date" id="end"></div>
+    </div>
+    <div class="row3">
+      <div><label class="f" for="step">每幾天一組</label><input type="number" id="step" min="1" max="30" inputmode="numeric"></div>
+      <div><label class="f" for="trip">玩幾天</label><input type="number" id="trip" min="1" max="60" inputmode="numeric"></div>
+      <div><label class="f" for="adults">人數</label><input type="number" id="adults" min="1" max="9" inputmode="numeric"></div>
+    </div>
+    <p class="hint" id="rule"></p>
+    <p class="warn" id="far" hidden></p>
+  </form>
+
+  <section>
+    <div class="sum"><span id="sumText"></span><span class="num" id="sumCount"></span></div>
+    <div class="list" id="list" style="margin-top:8px"></div>
+  </section>
+</div>
+
+<footer>
+  <span>這個頁面不會自動查價，所以不會被 Google 限流：點「查四腿票」「查台北來回」開 Google Flights，比較兩邊的最低價，四腿票比較便宜就值得買。</span>
+  <span>想自動掃描大量日期，可以在電腦上使用完整版：<a href="https://github.com/215Steven/fourleg-scanner" rel="noopener">四腿外站票掃描器（GitHub）</a></span>
+  <span>Google Flights 價格僅供參考，下單前請到航空公司官網用「多個城市」重查，並確認票種是否允許在台灣停留。</span>
+</footer>
+</div>
+
+<script>
+const DATA = {"airlines":{"BR":{"name":"長榮","asia":["AOJ","AKJ","FUK","UKB","KMQ","MYJ","OKA","KIX","CTS","SDJ","HND","NRT","PUS","GMP","ICN","PEK","CTU","CKG","DLC","CAN","KWL","HGH","TNA","NGB","SHA","PVG","SZX","TSN","CGO","HKG","MFM","DPS","CGK","KUL","CEB","CRK","MNL","SIN","BKK","CNX","HKT","DAD","HAN","SGN","DEL"],"longhaul":["VIE","CDG","MUC","MXP","AMS","LHR","YYZ","YVR","ORD","DFW","IAH","LAX","JFK","SFO","SEA","IAD","BNE"]},"CI":{"name":"華航","asia":["FUK","HIJ","ISG","KOJ","KMJ","KMI","NGO","OKA","KIX","CTS","FSZ","TAK","HND","NRT","TOY","PUS","GMP","ICN","PEK","CSX","CTU","CKG","CAN","HAK","KHN","NKG","TAO","SYX","PVG","SHA","SZX","XMN","XIY","XUZ","YTY","WUH","WUX","WEH","CGO","HKG","DPS","CGK","KUL","PEN","RGN","CEB","MNL","SIN","BKK","CNX","DAD","HAN","SGN"],"longhaul":["VIE","PRG","FRA","AMS","FCO","LHR","LAX","JFK","ONT","PHX","SFO","SEA","YVR","BNE","MEL","SYD","AKL","ROR","GUM"]},"JX":{"name":"星宇","asia":["FUK","HKD","UKB","KMJ","NGO","OKA","KIX","CTS","SDJ","SHI","TAK","NRT","PUS","HKG","MFM","KUL","CEB","CRK","MNL","SIN","BKK","CNX","DAD","HAN","SGN","PQC","DPS"],"longhaul":["PRG","LAX","ONT","PHX","SFO","SEA","SYD","AKL"]}},"regions":[{"id":"jp","name":"日本","codes":["NRT","HND","KIX","UKB","NGO","FUK","CTS","OKA","SDJ","AOJ","AKJ","HKD","KMQ","MYJ","HIJ","ISG","KOJ","KMJ","KMI","FSZ","TAK","TOY","SHI"]},{"id":"kr","name":"韓國","codes":["ICN","GMP","PUS"]},{"id":"hm","name":"港澳","codes":["HKG","MFM"]},{"id":"sea","name":"東南亞","codes":["BKK","CNX","HKT","SGN","HAN","DAD","PQC","MNL","CEB","CRK","SIN","KUL","PEN","CGK","DPS","RGN"]},{"id":"sa","name":"南亞","codes":["DEL"]},{"id":"cn","name":"中國大陸","codes":["PEK","PVG","SHA","CAN","SZX","CTU","CKG","HGH","NGB","XMN","TAO","DLC","TSN","TNA","KWL","CGO","CSX","HAK","KHN","NKG","SYX","XIY","XUZ","YTY","WUH","WUX","WEH"]},{"id":"eu","name":"歐洲","codes":["VIE","PRG","MUC","FRA","AMS","CDG","LHR","FCO","MXP"]},{"id":"na","name":"北美","codes":["LAX","SFO","SEA","ONT","PHX","JFK","ORD","DFW","IAH","IAD","YVR","YYZ"]},{"id":"oc","name":"大洋洲","codes":["BNE","SYD","MEL","AKL","GUM","ROR"]}],"names":{"NRT":"東京成田","HND":"東京羽田","KIX":"大阪關西","UKB":"神戶","NGO":"名古屋","FUK":"福岡","CTS":"札幌","OKA":"沖繩","SDJ":"仙台","AOJ":"青森","AKJ":"旭川","HKD":"函館","KMQ":"小松","MYJ":"松山","HIJ":"廣島","ISG":"石垣","KOJ":"鹿兒島","KMJ":"熊本","KMI":"宮崎","FSZ":"靜岡","TAK":"高松","TOY":"富山","SHI":"下地島","ICN":"首爾仁川","GMP":"首爾金浦","PUS":"釜山","HKG":"香港","MFM":"澳門","BKK":"曼谷","CNX":"清邁","HKT":"普吉","SGN":"胡志明","HAN":"河內","DAD":"峴港","PQC":"富國島","MNL":"馬尼拉","CEB":"宿霧","CRK":"克拉克","SIN":"新加坡","KUL":"吉隆坡","PEN":"檳城","CGK":"雅加達","DPS":"峇里島","RGN":"仰光","DEL":"新德里","PEK":"北京","PVG":"上海浦東","SHA":"上海虹橋","CAN":"廣州","SZX":"深圳","CTU":"成都","CKG":"重慶","HGH":"杭州","NGB":"寧波","XMN":"廈門","TAO":"青島","DLC":"大連","TSN":"天津","TNA":"濟南","KWL":"桂林","CGO":"鄭州","CSX":"長沙","HAK":"海口","KHN":"南昌","NKG":"南京","SYX":"三亞","XIY":"西安","XUZ":"徐州","YTY":"揚州","WUH":"武漢","WUX":"無錫","WEH":"威海","VIE":"維也納","PRG":"布拉格","MUC":"慕尼黑","FRA":"法蘭克福","AMS":"阿姆斯特丹","CDG":"巴黎","LHR":"倫敦","FCO":"羅馬","MXP":"米蘭","LAX":"洛杉磯","SFO":"舊金山","SEA":"西雅圖","ONT":"安大略","PHX":"鳳凰城","JFK":"紐約","ORD":"芝加哥","DFW":"達拉斯","IAH":"休士頓","IAD":"華盛頓","YVR":"溫哥華","YYZ":"多倫多","BNE":"布里斯本","SYD":"雪梨","MEL":"墨爾本","AKL":"奧克蘭","GUM":"關島","ROR":"帛琉","TPE":"台北"}};
+const $ = id => document.getElementById(id);
+const HUB = "TPE";
+const AN = c => DATA.names[c] || c;
+const REGION = {}; DATA.regions.forEach(g => g.codes.forEach(c => REGION[c] = g.id));
+const LONG = c => ["eu", "na", "oc"].includes(REGION[c]);
+const ARRIVE = c => (REGION[c] === "eu" || REGION[c] === "na") ? 1 : 0;   // 歐美回程隔天抵達台北
+
+/* ---------- Google Flights 查詢網址（tfs 參數是 protobuf 再 base64） ---------- */
+const enc = new TextEncoder();
+function varint(n){ const o = []; while (n > 127){ o.push((n & 127) | 128); n = Math.floor(n / 128); } o.push(n); return o; }
+const key = (no, wt) => varint(no * 8 + wt);
+const str = (no, s) => { const b = [...enc.encode(s)]; return [...key(no, 2), ...varint(b.length), ...b]; };
+const msg = (no, b) => [...key(no, 2), ...varint(b.length), ...b];
+const vint = (no, v) => [...key(no, 0), ...varint(v)];
+function gfUrl(legs, trip, al, adults){
+  let b = [];
+  legs.forEach(l => {
+    b = b.concat(msg(3, [...str(2, l.date), ...vint(5, 0), ...(al ? str(6, al) : []), ...msg(13, str(2, l.from)), ...msg(14, str(2, l.to))]));
+  });
+  b = b.concat([...key(8, 2), ...varint(adults), ...Array(adults).fill(1)], vint(9, 1), vint(19, trip));
+  const tfs = btoa(String.fromCharCode(...b));
+  return "https://www.google.com/travel/flights/search?tfs=" + encodeURIComponent(tfs) + "&hl=zh-TW&curr=TWD";
+}
+
+/* ---------- 日期 ---------- */
+const D = s => { const [y, m, d] = s.split("-").map(Number); return Date.UTC(y, m - 1, d); };
+const S = t => new Date(t).toISOString().slice(0, 10);
+const add = (t, n) => t + n * 864e5;
+const md = s => s.slice(5).replace("-", "/");
+const wk = s => "日一二三四五六"[new Date(D(s)).getUTCDay()];
+
+/* ---------- 狀態 ---------- */
+const DEF = {al: "BR", out: "HKG", dest: "CTS", pair: "12", fixed: "2027-06-30", start: "2027-01-10", end: "2027-03-31", step: 7, trip: 5, adults: 1};
+let st = {...DEF};
+try { Object.assign(st, JSON.parse(localStorage.getItem("fl4") || "{}")); } catch (e) {}
+const save = () => { try { localStorage.setItem("fl4", JSON.stringify(st)); } catch (e) {} };
+
+function fillSelect(sel, codes, cur){
+  const groups = DATA.regions.map(g => [g.name, g.codes.filter(c => codes.includes(c))]).filter(([, c]) => c.length);
+  sel.innerHTML = groups.map(([n, cs]) => `<optgroup label="${n}">` + cs.map(c => `<option value="${c}">${AN(c)} ${c}</option>`).join("") + "</optgroup>").join("");
+  sel.value = codes.includes(cur) ? cur : codes[0];
+  return sel.value;
+}
+function pressed(id, v){ document.querySelectorAll(`#${id} button`).forEach(b => b.setAttribute("aria-pressed", b.dataset.v === v ? "true" : "false")); }
+
+function legsFor(d){
+  const t = D(d), trip = st.trip, fx = D(st.fixed), arr = ARRIVE(st.dest), gap = LONG(st.dest) ? 0 : 1;
+  let L;
+  if (st.pair === "12"){
+    L = [[add(t, -gap), st.out, HUB], [t, HUB, st.dest], [add(t, trip), st.dest, HUB], [fx, HUB, st.out]];
+    if (fx < add(t, trip + arr)) return null;
+  } else {
+    L = [[fx, st.out, HUB], [t, HUB, st.dest], [add(t, trip), st.dest, HUB], [add(t, trip + arr + gap), HUB, st.out]];
+    if (fx > t) return null;
+  }
+  return L.map(([x, f, to]) => ({date: S(x), from: f, to}));
+}
+
+function render(){
+  const a = DATA.airlines[st.al];
+  st.out = fillSelect($("out"), a.asia, st.out);
+  st.dest = fillSelect($("dest"), a.asia.concat(a.longhaul).filter(c => c !== st.out), st.dest);
+  pressed("al", st.al); pressed("pair", st.pair);
+  ["fixed", "start", "end", "step", "trip", "adults"].forEach(k => { if (document.activeElement !== $(k)) $(k).value = st[k]; });
+  $("fixedLabel").textContent = st.pair === "12" ? "第 4 段日期（台北→外站）" : "第 1 段日期（外站→台北）";
+  $("rule").textContent = (st.pair === "12" ? "外站→台北、台北→目的地 轉機。" : "目的地→台北、台北→外站 轉機。")
+    + (LONG(st.dest) ? "長程線以抵達台北那天計算，排當天轉機；查不到可以在 Google Flights 改成隔天。" : "短程線排隔天轉機。");
+
+  const out = [], today = Date.now(), lim = add(today, 330);
+  let far = 0;
+  if (st.start && st.end && D(st.start) <= D(st.end)){
+    for (let t = D(st.start), n = 0; t <= D(st.end) && n < 60; t = add(t, Math.max(1, st.step)), n++){
+      const L = legsFor(S(t));
+      if (!L || D(L[0].date) <= today) continue;
+      if (Math.max(...L.map(l => D(l.date))) > lim){ far++; continue; }
+      out.push(L);
+    }
+  }
+  $("far").hidden = !far;
+  $("far").textContent = `有 ${far} 組的航段在約 11 個月以後，Google Flights 還查不到，已略過。`;
+  $("sumText").textContent = `${a.name}・${AN(st.out)}外站 → ${AN(st.dest)}`;
+  $("sumCount").textContent = `${out.length} 組`;
+  if (!out.length){ $("list").innerHTML = `<div class="card empty">沒有符合的日期。請確認出國日範圍，以及不轉機那一段的日期是否排得進去。</div>`; save(); return; }
+  const conn = st.pair === "12" ? [0, 1] : [2, 3];
+  $("list").innerHTML = out.map(L => {
+    const u4 = gfUrl(L, 3, st.al, st.adults), ur = gfUrl([L[1], L[2]], 1, st.al, st.adults);
+    const legs = L.map((l, i) => `<span class="num ${conn.includes(i) ? "c" : ""}" title="${AN(l.from)}→${AN(l.to)}">${l.from}→${l.to} ${md(l.date)}</span>` + (i === conn[0] ? "<b>轉</b>" : "")).join("");
+    return `<article class="card trip">
+      <div class="top"><span class="d num">${md(L[1].date)}<small>（${wk(L[1].date)}）出發，玩 ${st.trip} 天</small></span></div>
+      <div class="legs">${legs}</div>
+      <div class="btns"><a class="p" href="${u4}" target="_blank" rel="noopener">查四腿票</a><a class="s" href="${ur}" target="_blank" rel="noopener">查台北來回</a></div>
+    </article>`;
+  }).join("");
+  save();
+}
+$("al").onclick = e => { const b = e.target.closest("button"); if (b){ st.al = b.dataset.v; render(); } };
+$("pair").onclick = e => { const b = e.target.closest("button"); if (b){ st.pair = b.dataset.v; render(); } };
+$("out").onchange = e => { st.out = e.target.value; render(); };
+$("dest").onchange = e => { st.dest = e.target.value; render(); };
+["fixed", "start", "end"].forEach(k => $(k).addEventListener("change", e => { if (e.target.value){ st[k] = e.target.value; render(); } }));
+["step", "trip", "adults"].forEach(k => $(k).addEventListener("change", e => {
+  const v = Math.round(Number(e.target.value)); if (v >= 1){ st[k] = k === "adults" ? Math.min(9, v) : v; render(); } }));
+
+function setTheme(t){
+  const v = t === "light" || t === "dark" ? t : "auto";
+  if (v === "auto") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = v;
+  document.querySelectorAll(".theme button").forEach(b => b.setAttribute("aria-pressed", b.dataset.t === v ? "true" : "false"));
+  try { localStorage.setItem("theme", v); } catch (e) {}
+}
+document.querySelectorAll(".theme button").forEach(b => b.onclick = () => setTheme(b.dataset.t));
+setTheme((() => { try { return localStorage.getItem("theme"); } catch (e) { return null; } })());
+render();
+/* 嵌在部落格（iframe）裡時，把頁面高度告訴外層，外層可以自動調整高度 */
+if (window.parent !== window){
+  const post = () => { try { parent.postMessage({fourleg: "height", h: document.documentElement.scrollHeight}, "*"); } catch (e) {} };
+  new ResizeObserver(post).observe(document.body); post();
+}
+</script>
+</body>
+</html>

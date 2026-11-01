@@ -13,6 +13,8 @@
 
 覺得好用的話，請幫忙按右上角的 **Star**，讓更多人找得到這個工具。
 
+**手機、平板版（不用安裝）**：[四腿票查票連結](https://215steven.github.io/fourleg-scanner/mobile.html)，選好航線就列出每個日期的 Google Flights 查票連結，點開即可比價。
+
 ![四腿外站票掃描器畫面（示範資料）](docs/screenshot.png)
 
 ## 功能
