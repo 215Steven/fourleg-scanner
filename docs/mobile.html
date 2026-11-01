@@ -59,6 +59,11 @@ select,input[type=date],input[type=number]{width:100%;min-height:44px;padding:0 
 button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .list{display:grid;gap:10px}
 .sum{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:2px 2px 0;color:var(--mut);font-size:13px}
+.ai{padding:14px;display:grid;gap:8px;margin-top:8px}
+.ai p{margin:0;font-size:13px;color:var(--ink-2)}
+.ai button{min-height:44px;border:1px solid var(--acc);border-radius:10px;background:transparent;color:var(--acc);font-weight:700;cursor:pointer}
+.ai textarea{width:100%;min-height:160px;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:10px;font:12.5px/1.5 var(--mono);color:var(--ink)}
+.ai .ok{font-size:12.5px;color:var(--acc)}
 .trip{padding:14px 14px 12px;display:grid;gap:10px}
 .trip .top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 .trip .d{font:700 17px/1.2 var(--display)}
@@ -129,6 +134,12 @@ footer a{color:var(--acc)}
 
   <section>
     <div class="sum"><span id="sumText"></span><span class="num" id="sumCount"></span></div>
+    <div class="card ai">
+      <p>想請 ChatGPT 或 Gemini 幫忙查價？按下面按鈕複製查價指令，貼到它們的對話框。AI 有時會查不到或給錯價格，下單前請點連結確認。</p>
+      <button type="button" id="copyAi">複製給 ChatGPT／Gemini 的查價指令</button>
+      <span class="ok" id="copyOk" role="status" aria-live="polite"></span>
+      <textarea id="aiText" readonly hidden aria-label="查價指令"></textarea>
+    </div>
     <div class="list" id="list" style="margin-top:8px"></div>
   </section>
 </div>
@@ -177,6 +188,31 @@ const wk = s => "日一二三四五六"[new Date(D(s)).getUTCDay()];
 const DEF = {al: "BR", out: "HKG", dest: "CTS", pair: "12", fixed: "2027-06-30", start: "2027-01-10", end: "2027-03-31", step: 7, trip: 5, adults: 1};
 let st = {...DEF};
 try { Object.assign(st, JSON.parse(localStorage.getItem("fl4") || "{}")); } catch (e) {}
+let lastOut = [];
+function aiPrompt(){
+  const a = DATA.airlines[st.al], list = lastOut.slice(0, 12);
+  const lines = list.map((L, i) => {
+    const four = L.map(l => `${l.from}→${l.to} ${l.date}`).join("、");
+    return `${i + 1}. 出國日 ${L[1].date}\n   四腿票（多城市、同一張票、四段都搭${a.name}直飛）：${four}\n   連結：${gfUrl(L, 3, st.al, st.adults)}\n   台北來回（${a.name}直飛）：${L[1].from}→${L[1].to} ${L[1].date} 去、${L[2].date} 回\n   連結：${gfUrl([L[1], L[2]], 1, st.al, st.adults)}`;
+  }).join("\n");
+  return `請幫我查以下${a.name}（${st.al}）外站四腿票，以及同一段日期的台北來回票價，比較四腿票有沒有比較便宜。\n`
+    + `條件：經濟艙、${st.adults} 位成人、新台幣、只看${a.name}自己營運的直飛航班。\n`
+    + `規則：\n- 請用 Google Flights 或${a.name}官網實際查詢，不要估算或用過去的價格。\n- 四腿票要用「多城市」一次查四段的總價，不是四張單程相加。\n- 查不到就寫「查不到」，不要猜。\n\n`
+    + lines
+    + `\n\n最後用表格整理：出國日｜四腿票總價｜台北來回價｜四腿比來回省多少（金額與 %）｜資料來源。並指出最划算的是哪一天。`
+    + (lastOut.length > list.length ? `\n（共 ${lastOut.length} 組，先查前 ${list.length} 組）` : "");
+}
+$("copyAi").onclick = async () => {
+  const text = aiPrompt();
+  try {
+    await navigator.clipboard.writeText(text);
+    $("copyOk").textContent = "已複製，打開 ChatGPT 或 Gemini 貼上即可。";
+    $("aiText").hidden = true;
+  } catch (e) {
+    $("aiText").value = text; $("aiText").hidden = false; $("aiText").select();
+    $("copyOk").textContent = "這個瀏覽器不允許自動複製，請長按下面的文字全選後複製。";
+  }
+};
 const save = () => { try { localStorage.setItem("fl4", JSON.stringify(st)); } catch (e) {} };
 
 function fillSelect(sel, codes, cur){
@@ -226,6 +262,8 @@ function render(){
   $("sumCount").textContent = `${out.length} 組`;
   if (!out.length){ $("list").innerHTML = `<div class="card empty">沒有符合的日期。請確認出國日範圍，以及不轉機那一段的日期是否排得進去。</div>`; save(); return; }
   const conn = st.pair === "12" ? [0, 1] : [2, 3];
+  lastOut = out;
+  $("copyOk").textContent = ""; $("aiText").hidden = true;
   $("list").innerHTML = out.map(L => {
     const u4 = gfUrl(L, 3, st.al, st.adults), ur = gfUrl([L[1], L[2]], 1, st.al, st.adults);
     const legs = L.map((l, i) => `<span class="num ${conn.includes(i) ? "c" : ""}" title="${AN(l.from)}→${AN(l.to)}">${l.from}→${l.to} ${md(l.date)}</span>` + (i === conn[0] ? "<b>轉</b>" : "")).join("");
