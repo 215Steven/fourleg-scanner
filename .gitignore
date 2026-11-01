@@ -10,3 +10,6 @@ __pycache__/
 # 系統檔
 .DS_Store
 Thumbs.db
+
+# 個人外掛（只放自己電腦）
+plugin_*.py

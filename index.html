@@ -339,6 +339,10 @@ td a{color:var(--ink-2);text-decoration:underline;text-decoration-color:var(--li
 
       <section class="step">
         <h2><b>4</b>DEAL 門檻</h2>
+        <div class="field" id="sourceRow" hidden>
+          <p class="f" id="lblSource">價格來源</p>
+          <div class="seg" role="group" aria-labelledby="lblSource" id="sourceSeg"></div>
+        </div>
         <div class="seg field" role="group" aria-label="比較基準" hidden>
           <button type="button" data-basis="both">兩趟都要玩</button>
           <button type="button" data-basis="dest">只去目的地</button>
@@ -441,7 +445,7 @@ const pf = v => v == null ? "" : Math.abs(v).toFixed(1) + "%";
 const adultsLabel = () => `${Number($("adults").value) || 1} 位成人 · 新台幣`;
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
-let cfg = {}, rows = [], sortKey = "_save", sortAsc = false, polling = null, pair = "12", basis = "dest", cellFilter = null, state = "idle";
+let source = "google", cfg = {}, rows = [], sortKey = "_save", sortAsc = false, polling = null, pair = "12", basis = "dest", cellFilter = null, state = "idle";
 
 /* ---------- chips ---------- */
 function chip(code, on, labels){
@@ -570,10 +574,21 @@ function fill(c){
   $("minSave").value = (c.deal_rules || {}).min_saving_pct ?? 15;
   setPair(c.connect_pair || "12");
   setBasis(c.deal_basis || "dest");
+  const srcs = c._sources || {};
+  source = srcs[c.source] ? c.source : "google";
+  $("sourceRow").hidden = Object.keys(srcs).length < 2;
+  $("sourceSeg").innerHTML = Object.entries(srcs).map(([k, v]) => `<button type="button" data-source="${esc(k)}">${esc(v)}</button>`).join("");
+  document.querySelectorAll("[data-source]").forEach(b => b.onclick = () => setSource(b.dataset.source));
+  setSource(source);
+}
+function setSource(s){
+  source = s;
+  document.querySelectorAll("[data-source]").forEach(x => x.setAttribute("aria-pressed", x.dataset.source === s ? "true" : "false"));
 }
 function collect(){
   const outs = picked($("outstations"));
-  return {...cfg,
+  const {_sources, ...base} = cfg;
+  return {...base, source,
     airlines: picked($("airlines")), outstations: outs, destinations: picked($("destinations")),
     date_window: {start: $("start").value, end: $("end").value, step_days: Number($("step").value) || 7},
     trip_days: Number($("trip").value) || 5, fixed_leg_date: $("fixed").value, fixed_flex_days: Math.max(0, Math.min(3, Number($("flex").value) || 0)),

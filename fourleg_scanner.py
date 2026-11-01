@@ -1301,5 +1301,27 @@ def main():
               f"四腿 {fmt(r.fourleg_price)} vs 台北來回 {fmt(r.baseline_price)}（省 {fmt(r.fare_saving_pct, True)}）")
 
 
+# ---------- 外掛：同資料夾的 plugin_*.py 可以加上其他價格來源（自己用，不會上傳 GitHub） ----------
+
+SOURCES = {"google": "Google Flights"}  # 價格來源：外掛可在 register() 裡加入新的來源
+
+
+def _load_plugins():
+    import importlib.util
+    me = sys.modules[__name__]
+    for path in sorted(HERE.glob("plugin_*.py")):
+        try:
+            spec = importlib.util.spec_from_file_location(path.stem, path)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            mod.register(me)
+            print(f"已載入外掛：{path.name}")
+        except Exception as e:
+            print(f"外掛 {path.name} 載入失敗：{type(e).__name__}: {e}")
+
+
+_load_plugins()
+
+
 if __name__ == "__main__":
     main()

@@ -121,7 +121,10 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
         elif path == "/api/config":
-            self.send_json(json.loads((HERE / "config.json").read_text(encoding="utf-8")))
+            c = json.loads((HERE / "config.json").read_text(encoding="utf-8"))
+            if len(fs.SOURCES) > 1:
+                c["_sources"] = fs.SOURCES  # 有外掛提供其他價格來源時，網頁才顯示「價格來源」
+            self.send_json(c)
         elif path == "/api/status":
             from urllib.parse import parse_qs, urlparse
             qs = parse_qs(urlparse(self.path).query)
@@ -145,7 +148,7 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0))
         data = json.loads(self.rfile.read(length) or b"{}")
         if self.path == "/api/scan":
-            cfg = data.get("config", {})
+            cfg = {k: v for k, v in data.get("config", {}).items() if not k.startswith("_")}
             if data.get("save"):
                 (HERE / "config.json").write_text(
                     json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
