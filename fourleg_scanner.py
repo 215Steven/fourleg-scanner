@@ -657,10 +657,14 @@ def arrival_days(cfg: dict, dest: str) -> int:
     return int(table.get(region_of(dest), 0))
 
 
-def build_legs(cfg: dict, out: str, dest: str, d: date, extra_days: int = 0) -> list[Leg] | None:
+def build_legs(cfg: dict, out: str, dest: str, d: date, extra_days: int = 0,
+               gap_days: int | None = None) -> list[Leg] | None:
     hub = cfg.get("hub", "TPE")
     trip = timedelta(days=cfg.get("trip_days", 5))
-    gap = timedelta(days=cfg.get("connect_gap_days", 1))  # 轉機段間隔（預設隔天，從抵達日起算）
+    if gap_days is None:
+        # 轉機段間隔，從抵達台北那天起算：短程線多半隔天接續；長程線常常抵達當天就接得上
+        gap_days = cfg.get("longhaul_gap_days", 0) if is_longhaul(dest) else cfg.get("connect_gap_days", 1)
+    gap = timedelta(days=gap_days)
     arrive = timedelta(days=arrival_days(cfg, dest) + extra_days)
     fixed = cfg.get("fixed_leg_date")
     fixed = date.fromisoformat(fixed) if fixed else None
@@ -966,20 +970,29 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
                                                                    f"四腿 {tag} 直飛（重試）")
         if r.fourleg_price is None and fallback:
             # 長程線常沒有每天直飛：外站段維持直飛，台北↔目的地兩段放寬為最多經停一次
-            tries = [(0, [0, 1, 1, 0])]
-            if is_longhaul(dest) and cfg.get("connect_pair", "12") == "34":
-                tries.append((1, [0, 1, 1, 0]))  # 回程隔兩天才抵達台北的班次
-            for extra, stops in tries:
-                lg = build_legs(pcfg, out, dest, d, extra) if extra else legs
+            # (多一天抵達, 轉機間隔, 每段轉機次數, 說明)
+            tries = [(0, None, [0, 1, 1, 0], "經停")]
+            if is_longhaul(dest):
+                lg_gap = int(cfg.get("longhaul_gap_days", 0))
+                alt = 1 if lg_gap == 0 else 0
+                # 長程線：先試當天轉機直飛（主查詢），接著隔天轉機直飛，再放寬經停
+                tries = [(0, alt, 0, f"直飛（{'隔天' if alt else '當天'}轉機）"),
+                         (0, None, [0, 1, 1, 0], "經停"),
+                         (0, alt, [0, 1, 1, 0], f"經停（{'隔天' if alt else '當天'}轉機）")]
+                if cfg.get("connect_pair", "12") == "34":
+                    tries.append((1, None, [0, 1, 1, 0], "經停（晚一天抵達）"))  # 回程隔兩天才抵達台北的班次
+            for extra, gap_d, stops, label in tries:
+                lg = build_legs(pcfg, out, dest, d, extra, gap_d) if (extra or gap_d is not None) else legs
                 if not lg or max(l.date for l in lg) > horizon:
                     continue
                 q4s = make_query(lg, "multi-city", cfg, al, stops)
                 p4s, n4s = fetcher.cheapest_multicity(make_fq(lg, al, stops), q4s.url(), adults, cur,
-                                                      f"四腿 {tag} 經停")
+                                                      f"四腿 {tag} {label}")
                 if p4s:
                     r.fourleg_price, r.fourleg_url, note = p4s, q4s.url(), ""
                     r.legs = legs_text(lg)
-                    via.append("四腿")
+                    if stops != 0:
+                        via.append("四腿")
                     break
                 note = note or n4s
         if note == "cache":

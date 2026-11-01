@@ -48,5 +48,6 @@
   "engine": "browser",
   "deal_basis": "dest",
   "prune_outstations": false,
-  "outstation_trip_days": 5
+  "outstation_trip_days": 5,
+  "longhaul_gap_days": 0
 }

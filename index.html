@@ -517,8 +517,8 @@ function setPair(p){
   document.querySelectorAll("[data-pair]").forEach(b => b.setAttribute("aria-pressed", b.dataset.pair === p ? "true" : "false"));
   $("fixedLabel").textContent = p === "12" ? "第 4 段日期" : "第 1 段日期";
   $("pairHint").textContent = p === "12"
-    ? "外站→台北、台北→目的地 轉機；第 4 段（台北→外站）日期由你決定。"
-    : "目的地→台北、台北→外站 轉機；第 1 段（外站→台北）日期由你決定。歐美回程隔天才抵達台北，轉機日會自動往後算。";
+    ? "外站→台北、台北→目的地 轉機；第 4 段（台北→外站）日期由你決定。短程線預設隔天轉機；歐美長程線先查當天轉機，查不到再試隔天。"
+    : "目的地→台北、台北→外站 轉機；第 1 段（外站→台北）日期由你決定。短程線預設隔天轉機；歐美長程線以抵達台北那天計算，先查當天轉機，查不到再試隔天。";
   estimate();
 }
 function setBasis(b){
