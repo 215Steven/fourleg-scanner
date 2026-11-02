@@ -45,11 +45,14 @@ try:  # faster-flights（GitHub: jamexhuang/flights）提供的多城市 RPC 查
     from fast_flights.fetcher import _build_default_client
     _orig_encode = _shop._encode_shopping_request
 
+    _RPC_TRIP = {"t": 3}  # 查價類型：3 = 多個城市（四腿票），1 = 來回
+
     def _encode_with_filters(legs, tokens, seat_val=1, **kw):
         """原版不帶航司與轉機條件，這裡補上：index 3 = 轉機（1 = 直飛），index 4 = 航司。"""
         s = _orig_encode(legs, tokens, seat_val, **kw)
         req = json.loads(_up.unquote(s[len("f.req="):-1]))
         inner = json.loads(req[1])
+        inner[1][2] = _RPC_TRIP["t"]
         for seg, leg in zip(inner[1][13], legs):
             ms = getattr(leg, "max_stops", None)
             if ms is not None:
@@ -476,8 +479,16 @@ class Fetcher:
         dbg.mkdir(exist_ok=True)
         (dbg / f"{key[:12]}.html").write_text(url + "\n" + (text or ""), encoding="utf-8")
 
-    def cheapest_multicity(self, fq, url: str, adults: int, currency: str, label: str = "四腿票") -> tuple[int | None, str]:
-        """四腿票：走 Google 多城市查價 RPC，回傳組合總價。"""
+    def roundtrip(self, legs: list, al: str, stops, query, label: str, adults: int, currency: str):
+        """台北來回：跟四腿票一樣走查價 RPC（搜尋頁內嵌的結果常不完整，會誤判查無航班）。
+        同航司條件下，Google 也會列出搭配聯營夥伴航段的來回（例如回程轉搭奧地利、泰航）。"""
+        if HAS_RPC:
+            return self.cheapest_multicity(make_fq(legs, al, stops), query.url(), adults, currency, label, trip=1)
+        return self.cheapest(query, query.url(), label)
+
+    def cheapest_multicity(self, fq, url: str, adults: int, currency: str, label: str = "四腿票",
+                           trip: int = 3) -> tuple[int | None, str]:
+        """四腿票：走 Google 多城市查價 RPC，回傳組合總價。trip=1 時改查來回。"""
         if self.offline:
             return None, "dry-run"
         if not HAS_RPC:
@@ -491,6 +502,7 @@ class Fetcher:
         t0 = time.time()
         blocked = False
         br = self.use_browser()
+        _RPC_TRIP["t"] = trip
         try:
             if br is not None:
                 body = _shop._encode_shopping_request(fq, [], 1, passenger_counts=(adults, 0, 0, 0))
@@ -531,6 +543,8 @@ class Fetcher:
                 if self.browser is not None and self.ok_responses > 0:
                     # 同一個 Chrome 剛剛還查得到：多半是這組沒有航班、Google 一直沒回，不是被擋
                     blocked, note = False, "逾時（Google 沒回應，略過這筆）"
+        finally:
+            _RPC_TRIP["t"] = 3
         if p:
             self.cache[key] = {"t": time.time(), "p": p}
         log_activity("ok" if p else ("block" if blocked else "none"), label,
@@ -841,12 +855,13 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
         k = (al, out, go)
         if k not in out_rt_seen:
             nm = AIRLINE_NAMES.get(al, al)
-            q = make_query([Leg(go, hub, out), Leg(back, out, hub)], "round-trip", cfg, al)
-            p = fetcher.cheapest(q, q.url(), f"外站來回 {nm} {hub}⇄{out} {go:%m/%d}–{back:%m/%d}")[0]
+            ol = [Leg(go, hub, out), Leg(back, out, hub)]
+            q = make_query(ol, "round-trip", cfg, al)
+            p = fetcher.roundtrip(ol, al, 0, q, f"外站來回 {nm} {hub}⇄{out} {go:%m/%d}–{back:%m/%d}", adults, cur)[0]
             u = q.url()
             if p is None and fallback:
-                qs = make_query([Leg(go, hub, out), Leg(back, out, hub)], "round-trip", cfg, al, [1, 1])
-                p = fetcher.cheapest(qs, qs.url(), f"外站來回經停 {nm} {hub}⇄{out} {go:%m/%d}–{back:%m/%d}")[0]
+                qs = make_query(ol, "round-trip", cfg, al, [1, 1])
+                p = fetcher.roundtrip(ol, al, [1, 1], qs, f"外站來回經停 {nm} {hub}⇄{out} {go:%m/%d}–{back:%m/%d}", adults, cur)[0]
                 u = qs.url() if p else u
             out_rt_seen[k] = (p, u)
         return out_rt_seen[k]
@@ -1028,14 +1043,14 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
             qb = make_query([legs[1], legs[2]], "round-trip", cfg, al)
             if cal0 is None or (d.isoformat() not in cal0 and not cal_ok(al, dest, 0)):
                 # 月曆查不到、關閉，或這天剛好沒有月曆價：改回逐日查
-                bp = fetcher.cheapest(qb, qb.url(), f"來回 {AIRLINE_NAMES.get(al, al)} {hub}⇄{dest} {d:%m/%d}")[0]
+                bp = fetcher.roundtrip([legs[1], legs[2]], al, 0, qb, f"來回 {AIRLINE_NAMES.get(al, al)} {hub}⇄{dest} {d:%m/%d}", adults, cur)[0]
             else:
                 bp = cal0.get(d.isoformat())
                 ck = (al, dest)
                 if bp and cfg.get("calendar_check", True) and ck not in cal_checked:
                     # 每組航司＋目的地，用第一個有價格的日期實查一次，對照月曆價準不準
                     cal_checked.add(ck)
-                    real = fetcher.cheapest(qb, qb.url(), f"來回實查核對 {AIRLINE_NAMES.get(al, al)} {hub}⇄{dest} {d:%m/%d}")[0]
+                    real = fetcher.roundtrip([legs[1], legs[2]], al, 0, qb, f"來回實查核對 {AIRLINE_NAMES.get(al, al)} {hub}⇄{dest} {d:%m/%d}", adults, cur)[0]
                     if real:
                         diff = (bp - real) / real * 100
                         CAL_CHECKS.append(f"{AIRLINE_NAMES.get(al, al)} {dest} {d:%m/%d} 月曆 {bp:,}／實查 {real:,}（{diff:+.0f}%）")
@@ -1051,7 +1066,7 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
                 cal_s = cal_prices(al, dest, 1)
                 sp = cal_s.get(d.isoformat()) if cal_s is not None else None
                 if sp is None and (cal_s is None or not cal_ok(al, dest, 1)):
-                    sp = fetcher.cheapest(qbs, qbs.url(), f"來回經停 {AIRLINE_NAMES.get(al, al)} {hub}⇄{dest} {d:%m/%d}")[0]
+                    sp = fetcher.roundtrip([legs[1], legs[2]], al, [1, 1], qbs, f"來回經停 {AIRLINE_NAMES.get(al, al)} {hub}⇄{dest} {d:%m/%d}", adults, cur)[0]
                 baseline_seen[skey] = (qbs.url(), sp)
             s_url, s_price = baseline_seen[skey]
             if s_price and (b_price is None or s_price < b_price):

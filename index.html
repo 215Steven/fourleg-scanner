@@ -420,7 +420,7 @@ td a{color:var(--ink-2);text-decoration:underline;text-decoration-color:var(--li
           <tbody id="tbody"></tbody>
         </table>
       </div>
-      <p class="foot">比台北來回省＝同航司台北來回 − 四腿票。每段預設只查直飛；查不到時，台北↔目的地兩段改查同航司、最多經停一次並標「經停」，台北來回也一併比經停票價。短程線隔天轉機，歐美長程線以抵達台北那天計算。被限流而沒查到的組合會標「未查價」，可以點「四腿」「來回」到 Google Flights 手動查。金額為新台幣，依左側成人人數計；價格為 Google Flights 參考價，下單前請到航司官網用「多個城市」重查，並確認票種是否允許台灣停留。</p>
+      <p class="foot">比台北來回省＝同航司台北來回 − 四腿票。每段預設只查直飛；查不到時，台北↔目的地兩段改查同航司、最多經停一次並標「經停」，台北來回也一併比經停票價。短程線隔天轉機，歐美長程線以抵達台北那天計算。被限流而沒查到的組合會標「未查價」，可以點「四腿」「來回」到 Google Flights 手動查；「易遊」「Trip」直接開易遊網、Trip.com 的同一組四腿票（Trip.com 有時是分開開票的組合，下單前請確認）。金額為新台幣，依左側成人人數計；價格為 Google Flights 參考價，下單前請到航司官網用「多個城市」重查，並確認票種是否允許台灣停留。</p>
     </section>
   </main>
 </div>
@@ -630,6 +630,32 @@ function norm(r){
   r._legs = (r.legs || "").split(" / ").map(s => { const [rt, d] = s.split(" "); const [f, t] = (rt || "").split("-"); return {f, t, d}; });
   return r;
 }
+/* ---------- 易遊網／Trip.com 四腿票連結（手動點開查，不自動抓價） ---------- */
+const CITY = {CTS:"SPK", NRT:"TYO", HND:"TYO", KIX:"OSA", ITM:"OSA", ICN:"SEL", GMP:"SEL", PVG:"SHA", SHA:"SHA", PEK:"BJS", PKX:"BJS",
+  CGK:"JKT", LHR:"LON", LGW:"LON", CDG:"PAR", MXP:"MIL", FCO:"ROM", JFK:"NYC", EWR:"NYC", IAD:"WAS", ORD:"CHI", YYZ:"YTO", IAH:"HOU", DMK:"BKK"};
+const city = c => CITY[c] || c;
+function legsISO(r){ // 「HKG-TPE 12/07」只有月日：取最接近出國日的年份
+  const d0 = new Date(r.depart + "T00:00:00"), y0 = d0.getFullYear();
+  return (r._legs || []).filter(l => l.f && l.t && l.d).map(l => {
+    const [m, d] = l.d.split("/").map(Number);
+    const y = [y0 - 1, y0, y0 + 1].reduce((a, b) => Math.abs(new Date(b, m - 1, d) - d0) < Math.abs(new Date(a, m - 1, d) - d0) ? b : a);
+    return {f: l.f, t: l.t, iso: `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`};
+  });
+}
+function ezUrl(r){
+  const L = legsISO(r); if (L.length !== 4) return "";
+  const dmy = s => `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}`;
+  const q = L.map((l, i) => `dcity${i + 1}=${city(l.f)}&dport${i + 1}=${l.f}&acity${i + 1}=${city(l.t)}&aport${i + 1}=${l.t}&date${i + 1}=${dmy(l.iso)}`).join("&");
+  const direct = !(r.via || "").includes("四腿");
+  return `https://flight.eztravel.com.tw/tickets-multicity-${city(L[0].f)}-${city(L[0].t)}?${q}&adults=${cfg.adults || 1}&children=0&infants=0&direct=${direct}&cabintype=any&airline=${r.airline}&searchbox=s`;
+}
+function tripUrl(r){
+  const L = legsISO(r); if (L.length !== 4) return "";
+  const lc = s => s.toLowerCase();
+  const q = L.map((l, i) => `dcity${i}=${lc(city(l.f))}&acity${i}=${lc(city(l.t))}&ddate${i}=${l.iso}&dairport${i}=${lc(l.f)}&aairport${i}=${lc(l.t)}`).join("&");
+  const direct = !(r.via || "").includes("四腿");
+  return `https://tw.trip.com/flights/showfarefirst?triptype=mt&class=y&quantity=${cfg.adults || 1}&locale=zh-TW&curr=TWD&nonstoponly=${direct ? "on" : "off"}&airline=${r.airline}&${q}`;
+}
 const useCombo = r => basis === "both" && r.combo_saving != null;
 const val = r => useCombo(r) ? r.combo_saving : r.fare_saving;
 const pctOf = r => useCombo(r) ? r.combo_saving_pct : r.fare_saving_pct;
@@ -671,7 +697,10 @@ function render(){
       const fx = ci[0] === 0 ? 3 : ci[0] === 2 ? 0 : -1;
       const mini = r._legs.map((l, i) => `<span class="${ci.includes(i) ? "c" : i === fx ? "fx" : ""}" title="${i === fx ? "固定段（你指定的日期，依前後彈性挑最便宜）" : ""}${esc(l.f)}→${esc(l.t)}">${esc(l.d)}</span>` + (ci[0] === i ? `<b class="cx" title="第 ${i + 1}、${i + 2} 段轉機">轉</b>` : "")).join("");
       const fs = val(r);
-      const links = [`<a href="${esc(r.fourleg_url)}" target="_blank" rel="noopener">四腿</a>`,
+      const ez = ezUrl(r), tr = tripUrl(r);
+      const links = [`<a href="${esc(r.fourleg_url)}" target="_blank" rel="noopener" title="Google Flights 四腿票">四腿</a>`,
+        ez && `<a href="${esc(ez)}" target="_blank" rel="noopener" title="易遊網 多個城市">易遊</a>`,
+        tr && `<a href="${esc(tr)}" target="_blank" rel="noopener" title="Trip.com 多座城市（可能是分開開票的組合，下單前確認）">Trip</a>`,
         r.baseline_url && `<a href="${esc(r.baseline_url)}" target="_blank" rel="noopener">來回</a>`,
         r.oneway_url && `<a href="${esc(r.oneway_url)}" target="_blank" rel="noopener">單程</a>`].filter(Boolean).join("");
       const noPrice = r.fourleg_price == null;
@@ -681,7 +710,7 @@ function render(){
         <td class="num">${esc(r.depart)}</td>
         <td><span class="mini">${mini}</span></td>
         <td class="n">${noPrice ? `<span class="note" title="${esc(r.note === "未查價" ? "這組還沒查價，請點右邊「四腿」「來回」到 Google Flights 手動查" : r.note || "")}">${esc((r.note || "查無價格").length > 14 ? (r.note || "").slice(0, 14) + "…" : (r.note || "查無價格"))}</span>` : `${(r.via || "").includes("四腿") ? `<span class="via" title="這天查不到全程直飛，台北↔目的地改用同航司經停航班">經停</span>` : ""}${nf(r.fourleg_price)}`}</td>
-        <td class="n">${/台北來回|直飛基準/.test(r.via || "") ? `<span class="via" title="同航司經停來回（與經停四腿票比較基準一致）">經停</span>` : ""}${nf(r.baseline_price)}</td>
+        <td class="n">${/台北來回|直飛基準/.test(r.via || "") ? `<span class="via" title="同航司經停來回（與經停四腿票比較基準一致，可能含聯營夥伴航段）">經停</span>` : ""}${nf(r.baseline_price)}</td>
         <td class="n ${fs > 0 ? "pos" : fs < 0 ? "neg" : ""}" title="${useCombo(r) ? `兩趟合計 ${nf(r.combo_price)} − 四腿 ${nf(r.fourleg_price)}` : "台北來回 − 四腿"}">${sf(fs)}<span class="pct">${pf(pctOf(r))}</span></td>
         <td>${links}</td></tr>`;
     }).join("");
@@ -715,6 +744,8 @@ function renderHero(){
     + `<li class="foot-tag"><span>${ci.length ? `<span class="tagline">第 ${ci[0] + 1}、${ci[1] + 1} 段轉機</span>` : `<span class="tagline n">無轉機段</span>`}</span></li>`;
   $("heroLinks").innerHTML = [
     `<a href="${esc(b.fourleg_url)}" target="_blank" rel="noopener"><svg class="i" viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg>查四腿票</a>`,
+    ezUrl(b) && `<a href="${esc(ezUrl(b))}" target="_blank" rel="noopener">易遊網</a>`,
+    tripUrl(b) && `<a href="${esc(tripUrl(b))}" target="_blank" rel="noopener">Trip.com</a>`,
     b.baseline_url && `<a href="${esc(b.baseline_url)}" target="_blank" rel="noopener">查台北來回</a>`,
     b.oneway_url && `<a href="${esc(b.oneway_url)}" target="_blank" rel="noopener">查外站單程</a>`].filter(Boolean).join("");
 }
