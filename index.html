@@ -652,7 +652,8 @@ function ezUrl(r){
 function tripUrl(r){
   const L = legsISO(r); if (L.length !== 4) return "";
   const lc = s => s.toLowerCase();
-  const q = L.map((l, i) => `dcity${i}=${lc(city(l.f))}&acity${i}=${lc(city(l.t))}&ddate${i}=${l.iso}&dairport${i}=${lc(l.f)}&aairport${i}=${lc(l.t)}`).join("&");
+  // Trip.com 多座城市用 multdcity／multacity／multddate（用 dcity／ddate 時第 3 段日期會被忽略）
+  const q = L.map((l, i) => `multdcity${i}=${lc(city(l.f))}&multacity${i}=${lc(city(l.t))}&multddate${i}=${l.iso}&dairport${i}=${lc(l.f)}&aairport${i}=${lc(l.t)}`).join("&");
   const direct = !(r.via || "").includes("四腿");
   return `https://tw.trip.com/flights/showfarefirst?triptype=mt&class=y&quantity=${cfg.adults || 1}&locale=zh-TW&curr=TWD&nonstoponly=${direct ? "on" : "off"}&airline=${r.airline}&${q}`;
 }
