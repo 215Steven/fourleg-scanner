@@ -305,6 +305,7 @@ td a{color:var(--ink-2);text-decoration:underline;text-decoration-color:var(--li
           <div class="regions" id="destinations" role="group" aria-labelledby="lblDest"></div>
           <div class="add"><input id="newDest" type="text" maxlength="3" placeholder="代碼" aria-label="新增目的地代碼"><button id="addDest" type="button">加入</button></div>
           <p class="hint">航點旁的 B／C／J 代表長榮／華航／星宇有飛；所選航司沒飛的航點會變淡，掃描時自動略過。中國大陸外站需備台胞證。</p></div>
+        <label class="switch" style="margin:12px 0 0"><input type="checkbox" id="tsa" checked> 台北含松山（TSA）：華航、長榮的羽田、金浦、虹橋航段多查一次松山進出，取便宜的</label>
       </section>
 
       <section class="step">
@@ -569,6 +570,7 @@ function fill(c){
   $("fixed").value = c.fixed_leg_date || "";
   $("flex").value = c.fixed_flex_days ?? 2;
   $("oneway").checked = c.oneway_ref !== false;
+  $("tsa").checked = c.include_tsa !== false;
   $("coarse").checked = c.coarse_fine !== false;
   $("topOnly").checked = (c.baseline_mode || "top") === "top"; $("topN").value = c.baseline_top_n || 5;
   $("minSave").value = (c.deal_rules || {}).min_saving_pct ?? 15;
@@ -593,7 +595,7 @@ function collect(){
     date_window: {start: $("start").value, end: $("end").value, step_days: Number($("step").value) || 7},
     trip_days: Number($("trip").value) || 5, fixed_leg_date: $("fixed").value, fixed_flex_days: Math.max(0, Math.min(3, Number($("flex").value) || 0)),
     connect_pair: pair, connect_gap_days: Number($("gap").value), adults: Number($("adults").value) || 1,
-    oneway_ref: $("oneway").checked, coarse_fine: $("coarse").checked, deal_basis: basis,
+    oneway_ref: $("oneway").checked, include_tsa: $("tsa").checked, coarse_fine: $("coarse").checked, deal_basis: basis,
     baseline_mode: $("topOnly").checked ? "top" : "all", baseline_top_n: Math.max(1, Math.min(20, Number($("topN").value) || 5)),
     deal_rules: {...(cfg.deal_rules || {}), min_saving_pct: Number($("minSave").value)}};
 }
@@ -631,7 +633,7 @@ function norm(r){
   return r;
 }
 /* ---------- 易遊網／Trip.com 四腿票連結（手動點開查，不自動抓價） ---------- */
-const CITY = {CTS:"SPK", NRT:"TYO", HND:"TYO", KIX:"OSA", ITM:"OSA", ICN:"SEL", GMP:"SEL", PVG:"SHA", SHA:"SHA", PEK:"BJS", PKX:"BJS",
+const CITY = {TSA:"TPE", CTS:"SPK", NRT:"TYO", HND:"TYO", KIX:"OSA", ITM:"OSA", ICN:"SEL", GMP:"SEL", PVG:"SHA", SHA:"SHA", PEK:"BJS", PKX:"BJS",
   CGK:"JKT", LHR:"LON", LGW:"LON", CDG:"PAR", MXP:"MIL", FCO:"ROM", JFK:"NYC", EWR:"NYC", IAD:"WAS", ORD:"CHI", YYZ:"YTO", IAH:"HOU", DMK:"BKK"};
 const city = c => CITY[c] || c;
 function legsISO(r){ // 「HKG-TPE 12/07」只有月日：取最接近出國日的年份
@@ -710,8 +712,8 @@ function render(){
         <td>${esc(AP[r.outstation] || "")} <code class="note">${esc(r.outstation)}</code></td>
         <td class="num">${esc(r.depart)}</td>
         <td><span class="mini">${mini}</span></td>
-        <td class="n">${noPrice ? `<span class="note" title="${esc(r.note === "未查價" ? "這組還沒查價，請點右邊「四腿」「來回」到 Google Flights 手動查" : r.note || "")}">${esc((r.note || "查無價格").length > 14 ? (r.note || "").slice(0, 14) + "…" : (r.note || "查無價格"))}</span>` : `${(r.via || "").includes("四腿") ? `<span class="via" title="這天查不到全程直飛，台北↔目的地改用同航司經停航班">經停</span>` : ""}${nf(r.fourleg_price)}`}</td>
-        <td class="n">${/台北來回|直飛基準/.test(r.via || "") ? `<span class="via" title="同航司經停來回（與經停四腿票比較基準一致，可能含聯營夥伴航段）">經停</span>` : ""}${nf(r.baseline_price)}</td>
+        <td class="n">${noPrice ? `<span class="note" title="${esc(r.note === "未查價" ? "這組還沒查價，請點右邊「四腿」「來回」到 Google Flights 手動查" : r.note || "")}">${esc((r.note || "查無價格").length > 14 ? (r.note || "").slice(0, 14) + "…" : (r.note || "查無價格"))}</span>` : `${(r.via || "").includes("四腿") ? `<span class="via" title="這天查不到全程直飛，台北↔目的地改用同航司經停航班">經停</span>` : ""}${(r.via || "").split("、").includes("松山") ? `<span class="via" title="台北端改由松山機場（TSA）進出比較便宜">松山</span>` : ""}${nf(r.fourleg_price)}`}</td>
+        <td class="n">${/台北來回|直飛基準/.test(r.via || "") ? `<span class="via" title="同航司經停來回（與經停四腿票比較基準一致，可能含聯營夥伴航段）">經停</span>` : ""}${(r.via || "").includes("松山來回") ? `<span class="via" title="松山（TSA）進出的來回比較便宜">松山</span>` : ""}${nf(r.baseline_price)}</td>
         <td class="n ${fs > 0 ? "pos" : fs < 0 ? "neg" : ""}" title="${useCombo(r) ? `兩趟合計 ${nf(r.combo_price)} − 四腿 ${nf(r.fourleg_price)}` : "台北來回 − 四腿"}">${sf(fs)}<span class="pct">${pf(pctOf(r))}</span></td>
         <td>${links}</td></tr>`;
     }).join("");
@@ -735,7 +737,7 @@ function renderHero(){
     <p class="p">${amt == null ? "" : `比${useCombo(b) ? "分開買兩趟" : "台北來回"}${amt >= 0 ? "便宜" : "貴"} ${Math.abs(pct).toFixed(1)}%`}</p></div>`;
   $("heroDuo").innerHTML = fig(useCombo(b) ? "比分開買兩趟（台北來回＋外站來回）" : "比同航司台北來回", val(b), pctOf(b), true);
   $("heroSub").innerHTML = `<b>${AL[b.airline] || b.airline}</b> · <b>${esc(AP[b.outstation] || b.outstation)}</b>起訖 · ${esc(b.depart.slice(5).replace("-", "/"))} 台北→${esc(AP[b.dest] || b.dest)}`
-    + (b.via ? ` · <span class="via">經停：${esc(b.via.replace("直飛基準", "台北來回"))}</span>` : "");
+    + (b.via ? ` · <span class="via">${esc(b.via.replace("直飛基準", "台北來回").replace("四腿", "四腿經停").replace(/台北來回(?!松山)/, "台北來回經停").replace("松山來回", "台北來回走松山").replace(/(^|、)松山(?=、|$)/, "$1四腿走松山"))}</span>` : "");
   $("heroCompare").innerHTML = `<dt>四腿票</dt><dt>台北來回</dt>
     <dd>${nf(b.fourleg_price)}</dd><dd>${nf(b.baseline_price)}</dd>`;
   const ci = connIdx(b._legs);

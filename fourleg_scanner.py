@@ -701,6 +701,24 @@ def build_legs(cfg: dict, out: str, dest: str, d: date, extra_days: int = 0,
     return legs
 
 
+# 台北松山（TSA）也有國際線：華航、長榮飛羽田、金浦、虹橋。這幾個點另外查一次「松山進出」，取較便宜的
+TSA_ROUTES = {"HND", "GMP", "SHA"}
+TSA_AIRLINES = {"CI", "BR"}
+
+
+def tsa_legs(legs: list[Leg], hub: str) -> list[Leg] | None:
+    """把台北端換成松山（只換對面是羽田／金浦／虹橋的那幾段）；沒有可換的回傳 None。"""
+    out, changed = [], False
+    for l in legs:
+        o, d = l.origin, l.dest
+        if o == hub and d in TSA_ROUTES:
+            o, changed = "TSA", True
+        if d == hub and o in TSA_ROUTES:
+            d, changed = "TSA", True
+        out.append(Leg(l.date, o, d))
+    return out if changed else None
+
+
 def legs_text(legs: list[Leg]) -> str:
     return " / ".join(f"{l.origin}-{l.dest} {l.date:%m/%d}" for l in legs)
 
@@ -763,6 +781,7 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
     hub = cfg.get("hub", "TPE")
     adults, cur = cfg.get("adults", 1), cfg.get("currency", "TWD")
     fallback = cfg.get("allow_stops_fallback", True)
+    use_tsa = cfg.get("include_tsa", True) and cfg.get("hub", "TPE") == "TPE"
 
     airlines = [only_airline] if only_airline else cfg["airlines"]
     outs = [only_out] if only_out else cfg["outstations"]
@@ -967,6 +986,7 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
             evaluate(r, rules, history)
             return r
         via = []
+        used_legs, used_stops = legs, 0
         q4 = make_query(legs, "multi-city", cfg, al)
         r.fourleg_url, note = q4.url(), ""
 
@@ -1006,10 +1026,23 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
                 if p4s:
                     r.fourleg_price, r.fourleg_url, note = p4s, q4s.url(), ""
                     r.legs = legs_text(lg)
+                    used_legs, used_stops = lg, stops
                     if stops != 0:
                         via.append("四腿")
                     break
                 note = note or n4s
+        tl = tsa_legs(used_legs, hub) if (use_tsa and al in TSA_AIRLINES) else None
+        if tl and "限流" not in (note or ""):
+            # 同一組日期改由松山進出再查一次（羽田／金浦／虹橋），比較便宜就用松山
+            st = used_stops if r.fourleg_price else ([0, 1, 1, 0] if fallback else 0)
+            qt = make_query(tl, "multi-city", cfg, al, st)
+            pt, nt = fetcher.cheapest_multicity(make_fq(tl, al, st), qt.url(), adults, cur, f"四腿 {tag} 松山")
+            if pt and (r.fourleg_price is None or pt < r.fourleg_price):
+                r.fourleg_price, r.fourleg_url, note = pt, qt.url(), ""
+                r.legs = legs_text(tl)
+                if st != 0 and "四腿" not in via:
+                    via.append("四腿")
+                via.append("松山")
         if note == "cache":
             note = ""  # 沿用 24 小時內查過的結果，不是錯誤
         elif note == "dry-run":
@@ -1071,6 +1104,19 @@ def scan(cfg: dict, offline: bool, only_airline: str | None, only_out: str | Non
             s_url, s_price = baseline_seen[skey]
             if s_price and (b_price is None or s_price < b_price):
                 b_url, b_price, b_via = s_url, s_price, True
+        tl = tsa_legs([legs[1], legs[2]], hub) if (use_tsa and al in TSA_AIRLINES) else None
+        if tl:
+            tkey = bkey + "|tsa" + ("|stops" if b_via or "四腿" in via else "")
+            if tkey not in baseline_seen:
+                st = [1, 1] if (b_via or "四腿" in via) else 0
+                qt = make_query(tl, "round-trip", cfg, al, st)
+                baseline_seen[tkey] = (qt.url(), fetcher.roundtrip(
+                    tl, al, st, qt, f"來回 {AIRLINE_NAMES.get(al, al)} 松山⇄{dest} {d:%m/%d}", adults, cur)[0])
+            t_url, t_price = baseline_seen[tkey]
+            if t_price and (b_price is None or t_price < b_price):
+                b_url, b_price = t_url, t_price
+                if "松山來回" not in via:
+                    via.append("松山來回")
         r.baseline_url, r.baseline_price = b_url, b_price
         if b_via:
             via.append("台北來回")
